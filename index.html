@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';">
+  <title>Live Logic Viewer</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">EveMissLab · Dynamic Judgment</p>
+        <h1>Live Logic Viewer</h1>
+        <p>Validated event packages → deterministic projection → safe replay.</p>
+      </div>
+      <label class="file-button">
+        Import JSON
+        <input id="package-file" type="file" accept=".json,application/json">
+      </label>
+    </header>
+    <section id="status" class="status" aria-live="polite"></section>
+    <section id="controls" class="controls" aria-label="Replay controls">
+      <button id="prev" type="button">←</button>
+      <button id="play" type="button">▶ Play</button>
+      <button id="next" type="button">→</button>
+      <button id="live" type="button">Live</button>
+      <span id="cursor-label" class="cursor-label"></span>
+    </section>
+    <section id="viewer" class="viewer" aria-live="polite"></section>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

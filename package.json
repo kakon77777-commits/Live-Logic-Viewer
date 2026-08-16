@@ -1,0 +1,21 @@
+{
+  "name": "live-logic-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "verify:core": "node scripts/verify-core.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "katex": "^0.16.22"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vitest": "^3.2.0"
+  }
+}
