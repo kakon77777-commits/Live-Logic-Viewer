@@ -1,0 +1,31 @@
+@import 'katex/dist/katex.min.css';
+:root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0d1117; color:#e6edf3; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#172033,#0d1117 48%); }
+button,input { font:inherit; }
+button,.file-button { border:1px solid #30363d; background:#161b22; color:#e6edf3; border-radius:9px; padding:.55rem .8rem; cursor:pointer; }
+.file-button input { display:none; }
+.app-shell { width:min(1050px,94vw); margin:0 auto; padding:2rem 0 4rem; }
+.app-header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+.eyebrow,.claim-id,.metric-label,.evidence-meta,.cursor-label { color:#8b949e; font-size:.8rem; }
+.status { min-height:1.4rem; margin:1rem 0; color:#79c0ff; }
+.status.error { color:#ff7b72; }
+.controls { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:1rem 0; }
+.viewer { display:grid; gap:1rem; }
+.claim-card { border:1px solid #30363d; background:#0d1117dd; border-radius:16px; padding:1.2rem; box-shadow:0 18px 50px #0005; }
+.claim-heading { display:grid; gap:.2rem; }
+.claim-statement { margin:.1rem 0 1rem; }
+.judgment { display:inline-flex; width:max-content; border-radius:999px; padding:.35rem .7rem; font-weight:700; border:1px solid #30363d; }
+.judgment-omega { color:#d2a8ff; } .judgment-true { color:#56d364; } .judgment-false { color:#ff7b72; }
+.metric-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin:1rem 0; }
+.metric { border:1px solid #21262d; border-radius:10px; padding:.7rem; display:grid; gap:.2rem; }
+.evidence-list,.formula-list { display:grid; gap:.5rem; margin-top:1rem; }
+.evidence { border-left:3px solid #8b949e; padding:.5rem .7rem; display:flex; justify-content:space-between; gap:1rem; }
+.evidence-support { border-color:#56d364; } .evidence-oppose { border-color:#ff7b72; } .evidence-invalidated { opacity:.5; text-decoration:line-through; }
+.formula { overflow:auto; border:1px solid #21262d; border-radius:10px; padding:.8rem; }
+.execution { color:#8b949e; } .execution-failed { color:#ff7b72; }
+.timeline { display:grid; gap:.4rem; color:#c9d1d9; }
+.llv-changed { animation:llv-pulse .45s ease-out; }
+@keyframes llv-pulse { from { outline:2px solid #58a6ff; outline-offset:5px; } to { outline-color:transparent; outline-offset:0; } }
+@media (prefers-reduced-motion: reduce) { .llv-changed { animation:none; } }
+@media (max-width:700px) { .app-header { flex-direction:column; } .metric-grid { grid-template-columns:1fr; } .evidence { flex-direction:column; } }
