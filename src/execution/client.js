@@ -6,28 +6,11 @@ import { safeExecutionLimits, validateExecutionCapabilities } from './capabiliti
 
 export const EXECUTION_ENDPOINT='/v1/jobs'
 export const MAX_REMOTE_SOURCE_BYTES=64*1024
+export const MAX_CLIENT_WAIT_MS=15_000
 function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
 
-export async function verifyExecutionProvenance(envelope,request){
-  const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))])
-  if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch')
-  if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch')
-  return envelope
-}
-
-export async function verifyRemoteResultIntegrity(envelope,capabilities){
-  const caps=validateExecutionCapabilities(capabilities)
-  const policy=caps.result_integrity
-  if(policy.required){
-    await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)
-    return envelope
-  }
-  if(envelope.integrity){
-    if(!policy.public_jwk||!policy.key_id)throw new Error('Signed result received without a trusted public key capability')
-    await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)
-  }
-  return envelope
-}
+export async function verifyExecutionProvenance(envelope,request){const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))]);if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch');if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch');return envelope}
+export async function verifyRemoteResultIntegrity(envelope,capabilities){const caps=validateExecutionCapabilities(capabilities);const policy=caps.result_integrity;if(policy.required){await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id);return envelope}if(envelope.integrity){if(!policy.public_jwk||!policy.key_id)throw new Error('Signed result received without a trusted public key capability');await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)}return envelope}
 
 export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID()}){
   if(typeof source!=='string'||!source.length)throw new Error('Python source is required')
@@ -38,7 +21,16 @@ export async function submitRemoteExecution({source,accessToken,capabilities,fet
   if(utf8Bytes(source)>safe.max_source_bytes)throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`)
   const requestId=requestIdFactory()
   const requestPayload=buildExecutionRequest(source,{wall_ms:safe.wall_ms,output_bytes:safe.output_bytes},requestId)
-  const response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)})
+  const controller=new AbortController()
+  const waitMs=Math.min(MAX_CLIENT_WAIT_MS,safe.wall_ms+5000)
+  const timer=setTimeout(()=>controller.abort(),waitMs)
+  let response
+  try{
+    response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal,headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)})
+  }catch(error){
+    if(controller.signal.aborted)throw new Error(`Remote execution request timed out after ${waitMs} ms`)
+    throw error
+  }finally{clearTimeout(timer)}
   const text=await response.text()
   if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}
   const envelope=parseAndValidateExecutionResult(text)
