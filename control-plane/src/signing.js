@@ -31,7 +31,10 @@ export function resultSigningConfig(env = {}) {
   const keyId = validateKeyId(env.RESULT_SIGNING_KEY_ID)
   const publicJwk = publicOnly(parseJwk(env.RESULT_SIGNING_PUBLIC_JWK, 'RESULT_SIGNING_PUBLIC_JWK'))
   const privateJwk = parseJwk(env.RESULT_SIGNING_PRIVATE_JWK, 'RESULT_SIGNING_PRIVATE_JWK')
-  if (!privateJwk.d || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256') throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain EC P-256 private key material')
+  if (!privateJwk.d || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256' || typeof privateJwk.x !== 'string' || typeof privateJwk.y !== 'string') {
+    throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain EC P-256 private key material')
+  }
+  if (privateJwk.x !== publicJwk.x || privateJwk.y !== publicJwk.y) throw new Error('RESULT_SIGNING_PRIVATE_JWK does not match RESULT_SIGNING_PUBLIC_JWK')
 
   return Object.freeze({ required:true, algorithm:RESULT_INTEGRITY_ALGORITHM, key_id:keyId, public_jwk:publicJwk, private_jwk:Object.freeze({ ...privateJwk }) })
 }
