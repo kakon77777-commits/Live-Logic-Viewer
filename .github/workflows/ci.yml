@@ -45,6 +45,14 @@ jobs:
         run: npx vitest run tests
       - name: Production Viewer build
         run: npm run build
+      - name: Assert public bundle contains no Control Plane secret markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E 'RESULT_SIGNING_PRIVATE_JWK|CONTROL_API_TOKEN|RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS|@cloudflare/sandbox' dist; then
+            echo 'Control Plane capability/secret marker leaked into Viewer build.' >&2
+            exit 1
+          fi
 
   control-plane:
     runs-on: ubuntu-latest
