@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { submitRemoteExecution } from '../src/execution/client.js'
 
+const ACCESS_TOKEN='0123456789abcdef0123456789abcdef'
 const capabilities=()=>({schema_version:'0.1',runners:['python'],network_policies:['deny'],limits:{max_source_bytes:65536,min_wall_ms:100,max_wall_ms:10000,min_output_bytes:1024,max_output_bytes:65536},execution_result_is_evidence:false,result_integrity:{required:false,algorithm:'ECDSA_P256_SHA256',key_id:null,public_jwk:null,verification_keys:[]}})
-const args=fetchImpl=>({source:'print(1)',accessToken:'0123456789abcdef',capabilities:capabilities(),requestIdFactory:()=> 'req-body-limit-012345',fetchImpl})
+const args=fetchImpl=>({source:'print(1)',accessToken:ACCESS_TOKEN,capabilities:capabilities(),requestIdFactory:()=> 'req-body-limit-012345',fetchImpl})
 const bytes=text=>new TextEncoder().encode(text)
 
 describe('remote response streaming limits',()=>{
