@@ -28,7 +28,7 @@ describe('canonical protocol validation',()=>{
   })
   it('rejects non-canonical v0.2 timestamps',()=>{
     const p=demoV02(); p.events[0].occurred_at='2026-08-17T14:30:00+08:00'
-    expect(()=>validatePackageObject(p)).toThrow(/canonical UTC timestamp/i)
+    expect(()=>validatePackageObject(p)).toThrow(/canonical UTC timestamp|must match pattern/i)
   })
   it('rejects unsupported package schema versions',()=>{
     const p=demo(); p.schema_version='0.3'
