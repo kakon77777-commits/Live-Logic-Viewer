@@ -59,3 +59,47 @@ jobs:
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(find src shared control-plane tests -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+
+  source-snapshot:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Build commit-matched source snapshot
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT="$(git rev-parse HEAD)"
+          ROOT="Live-Logic-Viewer_Basic-Complete_v0.1"
+          ZIP="${ROOT}_${COMMIT:0:12}.zip"
+          mkdir "$ROOT"
+          git archive HEAD | tar -x -C "$ROOT"
+          printf 'Repository: %s\nBranch: %s\nCommit: %s\n' \
+            '${{ github.repository }}' \
+            '${{ github.event.pull_request.head.ref }}' \
+            "$COMMIT" > "$ROOT/GITHUB_COMMIT.txt"
+          (
+            cd "$ROOT"
+            find . -type f ! -name FILE_MANIFEST.sha256 -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > FILE_MANIFEST.sha256
+          )
+          zip -qr "$ZIP" "$ROOT"
+          sha256sum "$ZIP" > "$ZIP.sha256"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha=$ZIP.sha256" >> "$GITHUB_OUTPUT"
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-logic-viewer-source-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ steps.snapshot.outputs.zip }}
+            ${{ steps.snapshot.outputs.sha }}
+          if-no-files-found: error
+          retention-days: 30
