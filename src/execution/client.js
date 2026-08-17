@@ -10,7 +10,23 @@ export const MAX_CLIENT_WAIT_MS=15_000
 function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
 
 export async function verifyExecutionProvenance(envelope,request){const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))]);if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch');if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch');return envelope}
-export async function verifyRemoteResultIntegrity(envelope,capabilities){const caps=validateExecutionCapabilities(capabilities);const policy=caps.result_integrity;if(policy.required){await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id);return envelope}if(envelope.integrity){if(!policy.public_jwk||!policy.key_id)throw new Error('Signed result received without a trusted public key capability');await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)}return envelope}
+
+function trustedVerificationKey(policy,keyId){
+  const key=policy.verification_keys.find(entry=>entry.key_id===keyId)
+  if(!key)throw new Error(`Execution result signing key is not trusted: ${keyId||'missing'}`)
+  return key.public_jwk
+}
+
+export async function verifyRemoteResultIntegrity(envelope,capabilities){
+  const caps=validateExecutionCapabilities(capabilities)
+  const policy=caps.result_integrity
+  if(policy.required&&!envelope.integrity)throw new Error('Execution result signature is required')
+  if(envelope.integrity){
+    const publicJwk=trustedVerificationKey(policy,envelope.integrity.key_id)
+    await verifyExecutionResultIntegrity(envelope,publicJwk,envelope.integrity.key_id)
+  }
+  return envelope
+}
 
 export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID()}){
   if(typeof source!=='string'||!source.length)throw new Error('Python source is required')
