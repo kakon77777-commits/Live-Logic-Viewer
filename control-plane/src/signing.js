@@ -1,6 +1,7 @@
 import { RESULT_INTEGRITY_ALGORITHM, signExecutionResult } from '../../shared/execution-result-integrity.js'
 
 const MAX_VERIFICATION_KEYS = 5
+const P256_COORDINATE_RE=/^[A-Za-z0-9_-]{43}$/
 
 function parseJson(value, label) {
   if (value && typeof value === 'object') return value
@@ -15,8 +16,8 @@ function validateKeyId(value, label = 'RESULT_SIGNING_KEY_ID') {
 }
 
 function publicOnly(jwk, label = 'RESULT_SIGNING_PUBLIC_JWK') {
-  if (!jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256' || typeof jwk.x !== 'string' || typeof jwk.y !== 'string') {
-    throw new Error(`${label} must be an EC P-256 public key`)
+  if (!jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256' || !P256_COORDINATE_RE.test(jwk.x) || !P256_COORDINATE_RE.test(jwk.y)) {
+    throw new Error(`${label} must be an EC P-256 public key with canonical 32-byte base64url coordinates`)
   }
   if (jwk.d) throw new Error(`${label} must not contain private key material`)
   return Object.freeze({ kty:'EC', crv:'P-256', x:jwk.x, y:jwk.y })
@@ -49,8 +50,8 @@ export function resultSigningConfig(env = {}) {
   const keyId = validateKeyId(env.RESULT_SIGNING_KEY_ID)
   const publicJwk = publicOnly(parseJson(env.RESULT_SIGNING_PUBLIC_JWK, 'RESULT_SIGNING_PUBLIC_JWK'))
   const privateJwk = parseJson(env.RESULT_SIGNING_PRIVATE_JWK, 'RESULT_SIGNING_PRIVATE_JWK')
-  if (!privateJwk.d || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256' || typeof privateJwk.x !== 'string' || typeof privateJwk.y !== 'string') {
-    throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain EC P-256 private key material')
+  if (!privateJwk || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256' || !P256_COORDINATE_RE.test(privateJwk.x) || !P256_COORDINATE_RE.test(privateJwk.y) || !P256_COORDINATE_RE.test(privateJwk.d)) {
+    throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain canonical EC P-256 private key material')
   }
   if (privateJwk.x !== publicJwk.x || privateJwk.y !== publicJwk.y) throw new Error('RESULT_SIGNING_PRIVATE_JWK does not match RESULT_SIGNING_PUBLIC_JWK')
 
