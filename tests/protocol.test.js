@@ -7,5 +7,6 @@ describe('canonical protocol validation',()=>{
  it('rejects unknown fields',()=>{ const p=demo(); p.events[0].surprise=true; expect(()=>validatePackageObject(p)).toThrow(/Invalid event package/) })
  it('rejects forbidden nested fields',()=>{ const p=demo(); p.events[0].payload.html='<b>x</b>'; expect(()=>validatePackageObject(p)).toThrow(/Forbidden field/) })
  it('rejects oversized input before parse',()=>expect(()=>parseAndValidatePackage(' '.repeat(256*1024+1))).toThrow(/exceeds/))
+ it('rejects an oversized in-memory derived package too',()=>{ const p=demo(); p.events[0].payload.statement='x'.repeat(256*1024); expect(()=>validatePackageObject(p)).toThrow(/exceeds/) })
  it('rejects deep JSON',()=>{ let v={}; let cur=v; for(let i=0;i<34;i++){cur.x={};cur=cur.x} expect(()=>validatePackageObject(v)).toThrow(/nesting/) })
 })
