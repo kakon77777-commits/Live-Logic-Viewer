@@ -1,0 +1,19 @@
+import { EXECUTION_LIMITS } from './protocol.js'
+import { signingCapability } from './signing.js'
+
+export function executionCapabilities(env = {}) {
+  return Object.freeze({
+    schema_version: '0.1',
+    runners: Object.freeze(['python']),
+    network_policies: Object.freeze(['deny']),
+    limits: Object.freeze({
+      max_source_bytes: EXECUTION_LIMITS.maxSourceBytes,
+      min_wall_ms: EXECUTION_LIMITS.minWallMs,
+      max_wall_ms: EXECUTION_LIMITS.maxWallMs,
+      min_output_bytes: EXECUTION_LIMITS.minOutputBytes,
+      max_output_bytes: EXECUTION_LIMITS.maxOutputBytes
+    }),
+    execution_result_is_evidence: false,
+    result_integrity: signingCapability(env)
+  })
+}

@@ -1,0 +1,153 @@
+name: Live Logic CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+      - name: Install Viewer dependencies from lockfile
+        run: npm ci
+      - name: Report Viewer direct dependencies
+        run: npm ls --depth=0
+      - name: Record Viewer dependency inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ls --all --json > viewer-dependency-tree.json
+          sha256sum viewer-dependency-tree.json package-lock.json > viewer-dependency-manifest.sha256
+      - name: Audit Viewer dependencies
+        run: npm audit --audit-level=high
+      - name: Upload Viewer dependency inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: live-logic-viewer-dependencies-${{ github.sha }}
+          path: |
+            package-lock.json
+            viewer-dependency-tree.json
+            viewer-dependency-manifest.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dependency-free Viewer core verification
+        run: npm run verify:core
+      - name: Viewer tests
+        run: npx vitest run tests
+      - name: Production Viewer build
+        run: npm run build
+      - name: Assert public bundle contains no Control Plane secret markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E 'RESULT_SIGNING_PRIVATE_JWK|CONTROL_API_TOKEN|RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS|@cloudflare/sandbox' dist; then
+            echo 'Control Plane capability/secret marker leaked into Viewer build.' >&2
+            exit 1
+          fi
+
+  control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: control-plane
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+      - name: Install Control Plane dependencies from lockfile
+        run: npm ci
+      - name: Report Control Plane direct dependencies
+        run: npm ls --depth=0
+      - name: Record Control Plane dependency inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ls --all --json > control-plane-dependency-tree.json
+          sha256sum control-plane-dependency-tree.json package-lock.json > control-plane-dependency-manifest.sha256
+      - name: Audit Control Plane dependencies
+        run: npm audit --audit-level=high
+      - name: Upload Control Plane dependency inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: live-logic-control-plane-dependencies-${{ github.sha }}
+          path: |
+            control-plane/package-lock.json
+            control-plane/control-plane-dependency-tree.json
+            control-plane/control-plane-dependency-manifest.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dependency-free Control Plane core verification
+        run: npm run verify:core
+      - name: Control Plane tests
+        run: npm test
+
+  source-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+      - name: Parse all JavaScript modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find src shared control-plane tests -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+
+  source-snapshot:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Build commit-matched source snapshot
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT="$(git rev-parse HEAD)"
+          ROOT="Live-Logic-Viewer_Integration-v0.2"
+          ZIP="${ROOT}_${COMMIT:0:12}.zip"
+          mkdir "$ROOT"
+          git archive HEAD | tar -x -C "$ROOT"
+          printf 'Repository: %s\nBranch: %s\nCommit: %s\n' \
+            '${{ github.repository }}' \
+            '${{ github.event.pull_request.head.ref }}' \
+            "$COMMIT" > "$ROOT/GITHUB_COMMIT.txt"
+          (
+            cd "$ROOT"
+            find . -type f ! -name FILE_MANIFEST.sha256 -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > FILE_MANIFEST.sha256
+          )
+          zip -qr "$ZIP" "$ROOT"
+          sha256sum "$ZIP" > "$ZIP.sha256"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha=$ZIP.sha256" >> "$GITHUB_OUTPUT"
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: live-logic-viewer-source-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ steps.snapshot.outputs.zip }}
+            ${{ steps.snapshot.outputs.sha }}
+          if-no-files-found: error
+          retention-days: 30

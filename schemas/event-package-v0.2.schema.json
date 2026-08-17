@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evemisslab.com/live-logic-viewer/event-package-v0.2.schema.json",
+  "title": "Live Logic Viewer Event Package v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "package_id", "created_at", "events"],
+  "properties": {
+    "schema_version": {"const": "0.2"},
+    "package_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "created_at": {"$ref": "#/$defs/timestamp"},
+    "events": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/event"}}
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "event": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "required": ["event_id", "sequence", "occurred_at", "type", "claim_id", "payload"],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sequence": {"type": "integer", "minimum": 1},
+        "occurred_at": {"$ref": "#/$defs/timestamp"},
+        "type": {"type": "string"},
+        "claim_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "payload": {"type": "object"}
+      },
+      "allOf": [{
+        "oneOf": [
+          {"type":"object","properties":{"type":{"const":"claim_created"},"payload":{"$ref":"#/$defs/claimCreatedPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"evidence_added"},"payload":{"$ref":"#/$defs/evidenceAddedPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"evidence_invalidated"},"payload":{"$ref":"#/$defs/evidenceInvalidatedPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"judgment_transition"},"payload":{"$ref":"#/$defs/judgmentTransitionPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"metric_update"},"payload":{"$ref":"#/$defs/metricUpdatePayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"formula_projection"},"payload":{"$ref":"#/$defs/formulaProjectionPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"timeline_marker"},"payload":{"$ref":"#/$defs/timelineMarkerPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"execution_completed"},"payload":{"$ref":"#/$defs/executionCompletedPayload"}},"required":["type","payload"]},
+          {"type":"object","properties":{"type":{"const":"execution_failed"},"payload":{"$ref":"#/$defs/executionFailedPayload"}},"required":["type","payload"]}
+        ]
+      }]
+    },
+    "claimCreatedPayload": {
+      "type":"object","additionalProperties":false,"required":["statement"],
+      "properties":{"statement":{"type":"string","minLength":1,"maxLength":4096}}
+    },
+    "evidenceAddedPayload": {
+      "type":"object","additionalProperties":false,"required":["evidence_id","direction","label","source_type"],
+      "properties":{"evidence_id":{"type":"string","minLength":1,"maxLength":128},"direction":{"enum":["support","oppose","neutral","unresolved"]},"label":{"type":"string","maxLength":4096},"source_type":{"enum":["observation","document","derived","inference"]}}
+    },
+    "evidenceInvalidatedPayload": {
+      "type":"object","additionalProperties":false,"required":["evidence_id","reason"],
+      "properties":{"evidence_id":{"type":"string","minLength":1,"maxLength":128},"reason":{"type":"string","maxLength":4096}}
+    },
+    "judgmentTransitionPayload": {
+      "type":"object","additionalProperties":false,"required":["from","to","reason"],
+      "properties":{"from":{"enum":["open","generating","conflicted","provisionally_true","provisionally_false"]},"to":{"enum":["open","generating","conflicted","provisionally_true","provisionally_false"]},"reason":{"type":"string","maxLength":4096}}
+    },
+    "metricUpdatePayload": {
+      "type":"object","additionalProperties":false,"required":["field","from","to"],
+      "properties":{"field":{"enum":["support","counterpressure","completeness"]},"from":{"type":["number","null"],"minimum":0,"maximum":1},"to":{"type":"number","minimum":0,"maximum":1}}
+    },
+    "formulaProjectionPayload": {
+      "type":"object","additionalProperties":false,"required":["formula_id","tex","value"],
+      "properties":{"formula_id":{"type":"string","minLength":1,"maxLength":128},"tex":{"type":"string","maxLength":4096},"value":{"anyOf":[{"type":"number"},{"type":"string"},{"type":"boolean"},{"type":"null"}]}}
+    },
+    "timelineMarkerPayload": {
+      "type":"object","additionalProperties":false,"required":["label"],
+      "properties":{"label":{"type":"string","maxLength":4096}}
+    },
+    "executionCompletedPayload": {
+      "type":"object","additionalProperties":false,"required":["job_id","summary"],
+      "properties":{"job_id":{"type":"string","minLength":1,"maxLength":128},"summary":{"type":"string","maxLength":4096},"request_id":{"type":"string","minLength":16,"maxLength":128,"pattern":"^[A-Za-z0-9._:-]+$"},"execution_completed_at":{"$ref":"#/$defs/timestamp"},"recorded_at":{"$ref":"#/$defs/timestamp"},"integrity_status":{"enum":["verified","unsigned-dev","present-unverified","unverified"]},"signing_key_id":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[A-Za-z0-9._:-]+$"}}
+    },
+    "executionFailedPayload": {
+      "type":"object","additionalProperties":false,"required":["job_id","reason"],
+      "properties":{"job_id":{"type":"string","minLength":1,"maxLength":128},"reason":{"type":"string","maxLength":4096},"request_id":{"type":"string","minLength":16,"maxLength":128,"pattern":"^[A-Za-z0-9._:-]+$"},"execution_completed_at":{"$ref":"#/$defs/timestamp"},"recorded_at":{"$ref":"#/$defs/timestamp"},"integrity_status":{"enum":["verified","unsigned-dev","present-unverified","unverified"]},"signing_key_id":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[A-Za-z0-9._:-]+$"}}
+    }
+  }
+}

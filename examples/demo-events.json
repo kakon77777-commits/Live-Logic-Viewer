@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "package_id": "weather-demo-v0.1",
+  "events": [
+    {"event_id":"e01","sequence":1,"type":"claim_created","claim_id":"weather-claim","payload":{"statement":"Tomorrow afternoon will be rainy."}},
+    {"event_id":"e02","sequence":2,"type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"open","to":"generating","reason":"Evidence collection started."}},
+    {"event_id":"e03","sequence":3,"type":"evidence_added","claim_id":"weather-claim","payload":{"evidence_id":"forecast-a","direction":"support","label":"Forecast A supports rain","source_type":"document"}},
+    {"event_id":"e04","sequence":4,"type":"metric_update","claim_id":"weather-claim","payload":{"field":"support","from":null,"to":0.85}},
+    {"event_id":"e05","sequence":5,"type":"formula_projection","claim_id":"weather-claim","payload":{"formula_id":"support","tex":"S_t = 0.85","value":0.85}},
+    {"event_id":"e06","sequence":6,"type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"generating","to":"provisionally_true","reason":"Current support threshold reached."}},
+    {"event_id":"e07","sequence":7,"type":"evidence_added","claim_id":"weather-claim","payload":{"evidence_id":"front-shift","direction":"oppose","label":"Frontal system shifts away","source_type":"document"}},
+    {"event_id":"e08","sequence":8,"type":"metric_update","claim_id":"weather-claim","payload":{"field":"support","from":0.85,"to":0.25}},
+    {"event_id":"e09","sequence":9,"type":"formula_projection","claim_id":"weather-claim","payload":{"formula_id":"support","tex":"S_t = 0.25","value":0.25}},
+    {"event_id":"e10","sequence":10,"type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"provisionally_true","to":"generating","reason":"Major counterevidence reopens the judgment."}},
+    {"event_id":"e11","sequence":11,"type":"evidence_added","claim_id":"weather-claim","payload":{"evidence_id":"radar-update","direction":"oppose","label":"Radar update further reduces rain support","source_type":"document"}},
+    {"event_id":"e12","sequence":12,"type":"metric_update","claim_id":"weather-claim","payload":{"field":"support","from":0.25,"to":0.145}},
+    {"event_id":"e13","sequence":13,"type":"formula_projection","claim_id":"weather-claim","payload":{"formula_id":"support","tex":"S_t = 0.145","value":0.145}},
+    {"event_id":"e14","sequence":14,"type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"generating","to":"provisionally_false","reason":"Current oppose threshold reached."}}
+  ]
+}

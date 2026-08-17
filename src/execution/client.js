@@ -1,0 +1,74 @@
+import { MAX_EXECUTION_RESULT_BYTES, parseAndValidateExecutionResult } from './validate-result.js'
+import { buildExecutionRequest, canonicalExecutionRequest } from '../../shared/execution-request.js'
+import { sha256Hex } from '../../shared/sha256.js'
+import { verifyExecutionResultIntegrity } from '../../shared/execution-result-integrity.js'
+import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
+import { safeExecutionLimits, validateExecutionCapabilities } from './capabilities.js'
+
+export const EXECUTION_ENDPOINT='/v1/jobs'
+export const MAX_REMOTE_SOURCE_BYTES=64*1024
+export const MAX_CLIENT_WAIT_MS=15_000
+export const MIN_ACCESS_TOKEN_CHARACTERS=32
+function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
+
+export class ResultIntegrityTrustError extends Error {
+  constructor(message,keyId){super(message);this.name='ResultIntegrityTrustError';this.keyId=keyId}
+}
+
+export async function verifyExecutionProvenance(envelope,request){const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))]);if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch');if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch');return envelope}
+
+function trustedVerificationKey(policy,keyId){
+  const key=policy.verification_keys.find(entry=>entry.key_id===keyId)
+  if(!key)throw new ResultIntegrityTrustError(`Execution result signing key is not trusted: ${keyId||'missing'}`,keyId)
+  return key.public_jwk
+}
+
+export async function verifyRemoteResultIntegrity(envelope,capabilities){
+  const caps=validateExecutionCapabilities(capabilities)
+  const policy=caps.result_integrity
+  if(policy.required&&!envelope.integrity)throw new Error('Execution result signature is required')
+  if(envelope.integrity){
+    const publicJwk=trustedVerificationKey(policy,envelope.integrity.key_id)
+    await verifyExecutionResultIntegrity(envelope,publicJwk,envelope.integrity.key_id)
+  }
+  return envelope
+}
+
+async function verifyWithOptionalCapabilityRefresh(envelope,capabilities,refreshCapabilities){
+  try{return await verifyRemoteResultIntegrity(envelope,capabilities)}
+  catch(error){
+    if(!(error instanceof ResultIntegrityTrustError)||typeof refreshCapabilities!=='function')throw error
+    const refreshed=validateExecutionCapabilities(await refreshCapabilities())
+    return verifyRemoteResultIntegrity(envelope,refreshed)
+  }
+}
+
+export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID(),refreshCapabilities}){
+  if(typeof source!=='string'||!source.length)throw new Error('Python source is required')
+  if(typeof accessToken!=='string'||accessToken.length<MIN_ACCESS_TOKEN_CHARACTERS)throw new Error(`A short-lived access token of at least ${MIN_ACCESS_TOKEN_CHARACTERS} characters is required`)
+  if(typeof fetchImpl!=='function')throw new Error('fetch implementation is required')
+  if(typeof requestIdFactory!=='function')throw new Error('requestIdFactory is required')
+  if(refreshCapabilities!==undefined&&typeof refreshCapabilities!=='function')throw new Error('refreshCapabilities must be a function')
+  const safe=safeExecutionLimits(capabilities)
+  if(utf8Bytes(source)>safe.max_source_bytes)throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`)
+  const requestId=requestIdFactory()
+  const requestPayload=buildExecutionRequest(source,{wall_ms:safe.wall_ms,output_bytes:safe.output_bytes},requestId)
+  const controller=new AbortController()
+  const waitMs=Math.min(MAX_CLIENT_WAIT_MS,safe.wall_ms+5000)
+  const timer=setTimeout(()=>controller.abort(),waitMs)
+  let response
+  try{
+    response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal,headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)})
+  }catch(error){
+    if(controller.signal.aborted)throw new Error(`Remote execution request timed out after ${waitMs} ms`)
+    throw error
+  }finally{clearTimeout(timer)}
+  let text
+  try{text=await readBoundedUtf8Message(response,MAX_EXECUTION_RESULT_BYTES,'execution response')}
+  catch(error){if(error instanceof BoundedUtf8Error)throw new Error(`Remote execution response rejected: ${error.message}`);throw error}
+  if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}
+  const envelope=parseAndValidateExecutionResult(text)
+  await verifyExecutionProvenance(envelope,requestPayload)
+  await verifyWithOptionalCapabilityRefresh(envelope,capabilities,refreshCapabilities)
+  return envelope
+}

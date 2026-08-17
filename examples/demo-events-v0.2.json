@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.2",
+  "package_id": "weather-demo-v0.2",
+  "created_at": "2026-08-17T06:30:00.000Z",
+  "events": [
+    {"event_id":"t01","sequence":1,"occurred_at":"2026-08-17T06:30:00.000Z","type":"claim_created","claim_id":"weather-claim","payload":{"statement":"Tomorrow afternoon will be rainy."}},
+    {"event_id":"t02","sequence":2,"occurred_at":"2026-08-17T06:30:05.000Z","type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"open","to":"generating","reason":"Evidence collection started."}},
+    {"event_id":"t03","sequence":3,"occurred_at":"2026-08-17T06:30:10.000Z","type":"evidence_added","claim_id":"weather-claim","payload":{"evidence_id":"forecast-a","direction":"support","label":"Forecast A supports rain","source_type":"document"}},
+    {"event_id":"t04","sequence":4,"occurred_at":"2026-08-17T06:30:12.000Z","type":"metric_update","claim_id":"weather-claim","payload":{"field":"support","from":null,"to":0.85}},
+    {"event_id":"t05","sequence":5,"occurred_at":"2026-08-17T06:30:15.000Z","type":"judgment_transition","claim_id":"weather-claim","payload":{"from":"generating","to":"provisionally_true","reason":"Current support threshold reached."}},
+    {"event_id":"t06","sequence":6,"occurred_at":"2026-08-17T06:30:09.000Z","type":"timeline_marker","claim_id":"weather-claim","payload":{"label":"A delayed source timestamp arrived after closure."}}
+  ]
+}

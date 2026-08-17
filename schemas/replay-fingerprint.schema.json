@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evemisslab.com/live-logic-viewer/replay-fingerprint.schema.json",
+  "title": "Live Logic Replay Fingerprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fingerprint_version",
+    "canonicalization",
+    "hash_algorithm",
+    "projector_version",
+    "package_id",
+    "event_schema_version",
+    "event_cursor",
+    "event_prefix_sha256",
+    "projection_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "fingerprint_version": {"const": "1"},
+    "canonicalization": {"const": "sorted-json-v1"},
+    "hash_algorithm": {"const": "SHA-256"},
+    "projector_version": {"const": "0.2.0"},
+    "package_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "event_schema_version": {"enum": ["0.1", "0.2"]},
+    "event_cursor": {"type": "integer", "minimum": 0, "maximum": 4096},
+    "event_prefix_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "projection_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
