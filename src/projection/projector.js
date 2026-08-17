@@ -8,7 +8,7 @@ function ensureClaim(state, claimId) { if (!state.claims[claimId]) throw new Pro
 
 export function projectAt(store, cursor = store.length) {
   const end = Math.max(0, Math.min(store.length, Math.trunc(Number(cursor) || 0)))
-  const state = { cursor:end, package_created_at:store.createdAt ?? null, claims:{}, evidence:{}, judgments:{}, metrics:{}, formulas:{}, execution:{}, timeline:[] }
+  const state = { cursor:end, schema_version:store.schemaVersion, package_created_at:store.createdAt ?? null, claims:{}, evidence:{}, judgments:{}, metrics:{}, formulas:{}, execution:{}, timeline:[] }
   for (const event of store.events.slice(0, end)) {
     const id = event.claim_id
     switch (event.type) {
