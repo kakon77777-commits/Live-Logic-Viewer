@@ -1,7 +1,10 @@
 import { RESULT_INTEGRITY_ALGORITHM } from '../../shared/execution-result-integrity.js'
+import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
 
 export const CAPABILITIES_ENDPOINT = '/v1/capabilities'
 export const MAX_RESULT_VERIFICATION_KEYS = 5
+export const MAX_CAPABILITIES_BYTES = 16 * 1024
+const P256_COORDINATE_RE=/^[A-Za-z0-9_-]{43}$/
 
 export class CapabilityValidationError extends Error {
   constructor(message) { super(message); this.name = 'CapabilityValidationError' }
@@ -20,8 +23,8 @@ function validateKeyId(value, label='Result signing key id') {
 function validatePublicJwk(value, required, label='result_integrity.public_jwk') {
   if (!required && value === null) return null
   exactKeys(value, new Set(['kty','crv','x','y']), label)
-  if (value.kty !== 'EC' || value.crv !== 'P-256' || typeof value.x !== 'string' || typeof value.y !== 'string') {
-    throw new CapabilityValidationError(`${label} must be EC P-256`)
+  if (value.kty !== 'EC' || value.crv !== 'P-256' || !P256_COORDINATE_RE.test(value.x) || !P256_COORDINATE_RE.test(value.y)) {
+    throw new CapabilityValidationError(`${label} must be an EC P-256 key with canonical 32-byte base64url coordinates`)
   }
   return Object.freeze({ kty:value.kty, crv:value.crv, x:value.x, y:value.y })
 }
@@ -87,8 +90,11 @@ export function validateExecutionCapabilities(value) {
 export async function fetchExecutionCapabilities(fetchImpl=fetch){
   const response=await fetchImpl(CAPABILITIES_ENDPOINT,{method:'GET',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer'})
   if(!response.ok)throw new Error(`Capability discovery failed: HTTP ${response.status}`)
+  let text
+  try{text=await readBoundedUtf8Message(response,MAX_CAPABILITIES_BYTES,'capabilities response')}
+  catch(error){if(error instanceof BoundedUtf8Error)throw new CapabilityValidationError(`Capabilities response rejected: ${error.message}`);throw error}
   let value
-  try{value=JSON.parse(await response.text())}catch{throw new CapabilityValidationError('Capabilities response is not valid JSON')}
+  try{value=JSON.parse(text)}catch{throw new CapabilityValidationError('Capabilities response is not valid JSON')}
   return validateExecutionCapabilities(value)
 }
 
