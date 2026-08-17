@@ -25,9 +25,29 @@ The browser Viewer never executes user-provided code. Remote Python source is se
 
 Execution output returns as a canonical result envelope. The Viewer validates its closed schema, verifies the source/request provenance hashes, and—when the capability contract requires it—verifies a detached ECDSA P-256 / SHA-256 signature before accepting the remote result. Signing private keys exist only in the Control Plane environment. The Viewer receives public verification keys through the same-origin capability handshake.
 
-The result-integrity capability supports one active signing key plus a bounded set of previous public verification keys. This lets a deployment rotate its active private key without making in-flight or recently archived signed results unverifiable during a controlled grace period.
+Result-signature payload v2 additionally protects the client `request_id` and Control Plane `received_at` / `completed_at` audit timestamps. Legacy prototype v1 signatures remain verifiable, but v1 envelopes are forbidden from carrying these unsigned audit fields.
+
+The result-integrity capability supports one active signing key plus a bounded set of previous public verification keys. This lets a deployment rotate its active private key without making in-flight or recently archived signed results unverifiable during a controlled grace period. Unknown-key results may trigger one capability refresh; actual signature failures never silently downgrade to unverified data.
 
 An execution result is **not Evidence** and cannot change Judgment automatically. An inspected result may be recorded only through the explicit `Record lifecycle` action, which creates `execution_completed` or `execution_failed` metadata for an existing claim. Raw stdout/stderr is never copied into the Dynamic Logic event package.
+
+## Event package versions
+
+### v0.1
+
+Legacy event packages use strictly increasing `sequence` as their replay history and contain no first-class wall-time metadata.
+
+### v0.2
+
+Timestamped event packages add:
+
+- package `created_at`;
+- required per-event `occurred_at`;
+- canonical UTC timestamp validation;
+- wall-time display in the Viewer timeline;
+- explicit execution-lifecycle provenance fields such as `request_id`, execution completion time, record time, integrity status, and signing key id.
+
+`sequence` remains the canonical replay ordering. `occurred_at` is evidence about wall time and **never reorders history**. A v0.1 → v0.2 migration helper requires an explicit timestamp for every historical event and refuses to invent missing times.
 
 ## Security invariants
 
@@ -37,6 +57,7 @@ An execution result is **not Evidence** and cannot change Judgment automatically
 - `ERROR != Ω != false`.
 - `Execution Result != Evidence`.
 - Remote execution stays disabled until `/v1/capabilities` proves the server is no broader than the Viewer contract.
+- `/health` means liveness only; `/ready` checks required origin/auth/abuse-control/signing/provider configuration without launching a sandbox.
 - Every remote run includes a fresh `request_id` in the canonical request hash.
 - Remote acceptance order is `Schema → Provenance → Signature`.
 - Required result signatures cannot be downgraded to unsigned results.
