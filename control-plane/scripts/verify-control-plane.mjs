@@ -3,21 +3,10 @@ import { parseExecutionRequest } from '../src/protocol.js'
 import { canonicalizeExecutionResult } from '../src/canonicalize.js'
 import { createApplication } from '../src/app.js'
 import { createMockProvider } from '../src/providers/mock.js'
-const source = 'print(1 + 1)'
-const body = JSON.stringify({ schema_version: '0.1', runner: 'python', source, network_policy: { mode: 'deny' }, limits: { wall_ms: 5000, output_bytes: 65536 } })
-const parsed = parseExecutionRequest(body)
-assert.equal(parsed.network_policy.mode, 'deny')
-const canonical = await canonicalizeExecutionResult({ jobId: 'verify-job', request: parsed, raw: { provider: 'mock', stdout: '2\n', stderr: '', exitCode: 0, timedOut: false }, wallMs: 2 })
-assert.equal(canonical.status, 'completed')
-assert.equal(canonical.result.stdout, '2\n')
-assert.match(canonical.provenance.source_sha256, /^[0-9a-f]{64}$/)
-const token = '0123456789abcdef0123456789abcdef'
-const app = createApplication(() => createMockProvider({ stdout: '2\n' }))
-const response = await app(new Request('https://control.example/v1/jobs', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: 'https://viewer.example' }, body }), { CONTROL_API_TOKEN: token, VIEWER_ORIGIN: 'https://viewer.example' })
-assert.equal(response.status, 200)
-const envelope = await response.json()
-assert.equal(envelope.execution.provider, 'mock')
-const openNetwork = JSON.parse(body)
-openNetwork.network_policy.mode = 'allow'
-assert.throws(() => parseExecutionRequest(JSON.stringify(openNetwork)), /requires.*deny/i)
-console.log('Live Logic Control Plane core verification: OK')
+import { canonicalExecutionRequest } from '../../shared/execution-request.js'
+import { sha256Hex } from '../../shared/sha256.js'
+const source='print(1 + 1)'
+const body=JSON.stringify({schema_version:'0.1',runner:'python',source,network_policy:{mode:'deny'},limits:{wall_ms:5000,output_bytes:65536}})
+const parsed=parseExecutionRequest(body);assert.equal(parsed.network_policy.mode,'deny')
+const canonical=await canonicalizeExecutionResult({jobId:'verify-job',request:parsed,raw:{provider:'mock',stdout:'2\n',stderr:'',exitCode:0,timedOut:false},wallMs:2});assert.equal(canonical.status,'completed');assert.equal(canonical.result.stdout,'2\n');assert.equal(canonical.provenance.source_sha256,await sha256Hex(source));assert.equal(canonical.provenance.request_sha256,await sha256Hex(canonicalExecutionRequest(parsed)))
+const token='0123456789abcdef0123456789abcdef';const app=createApplication(()=>createMockProvider({stdout:'2\n'}));const response=await app(new Request('https://control.example/v1/jobs',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',origin:'https://viewer.example'},body}),{CONTROL_API_TOKEN:token,VIEWER_ORIGIN:'https://viewer.example'});assert.equal(response.status,200);const envelope=await response.json();assert.equal(envelope.execution.provider,'mock');const openNetwork=JSON.parse(body);openNetwork.network_policy.mode='allow';assert.throws(()=>parseExecutionRequest(JSON.stringify(openNetwork)),/requires.*deny/i);console.log('Live Logic Control Plane core verification: OK')
