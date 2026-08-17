@@ -14,20 +14,20 @@
         <h1>Live Logic Viewer</h1>
         <p>Validated event packages → deterministic projection → safe replay.</p>
       </div>
-      <label class="file-button">
-        Import JSON
-        <input id="package-file" type="file" accept=".json,application/json">
-      </label>
+      <div class="import-actions">
+        <label class="file-button">Import Events<input id="package-file" type="file" accept=".json,application/json"></label>
+        <label class="file-button">Inspect Execution Result<input id="execution-result-file" type="file" accept=".json,application/json"></label>
+      </div>
     </header>
     <section id="status" class="status" aria-live="polite"></section>
     <section id="controls" class="controls" aria-label="Replay controls">
-      <button id="prev" type="button">←</button>
-      <button id="play" type="button">▶ Play</button>
-      <button id="next" type="button">→</button>
-      <button id="live" type="button">Live</button>
-      <span id="cursor-label" class="cursor-label"></span>
+      <button id="prev" type="button">←</button><button id="play" type="button">▶ Play</button><button id="next" type="button">→</button><button id="live" type="button">Live</button><span id="cursor-label" class="cursor-label"></span>
     </section>
     <section id="viewer" class="viewer" aria-live="polite"></section>
+    <section class="execution-inspector-shell" aria-label="Execution result inspector">
+      <div class="section-heading"><div><p class="eyebrow">Separate trust object</p><h2>Execution Result Inspector</h2></div><button id="load-demo-execution" type="button">Load safe demo result</button></div>
+      <div id="execution-result" aria-live="polite"></div>
+    </section>
   </main>
   <script type="module" src="/src/main.js"></script>
 </body>

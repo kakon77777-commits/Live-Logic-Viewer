@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evemisslab.com/live-logic/execution-result.schema.json",
+  "title": "Live Logic Execution Result Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "status", "execution", "result", "provenance"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "job_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"enum": ["completed", "failed"]},
+    "execution": {"type": "object", "additionalProperties": false, "required": ["provider", "runner", "exit_code", "timed_out", "wall_ms"], "properties": {"provider": {"type": "string", "minLength": 1, "maxLength": 64}, "runner": {"const": "python"}, "exit_code": {"type": ["integer", "null"]}, "timed_out": {"type": "boolean"}, "wall_ms": {"type": "integer", "minimum": 0}}},
+    "result": {"type": "object", "additionalProperties": false, "required": ["type", "stdout", "stderr", "truncated"], "properties": {"type": {"const": "text"}, "stdout": {"type": "string", "maxLength": 65536}, "stderr": {"type": "string", "maxLength": 65536}, "truncated": {"type": "boolean"}}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["request_sha256", "source_sha256"], "properties": {"request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}
+  }
+}
