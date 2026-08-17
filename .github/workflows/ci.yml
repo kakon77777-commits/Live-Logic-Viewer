@@ -1,0 +1,61 @@
+name: Live Logic CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Viewer dependencies
+        run: npm install
+      - name: Dependency-free Viewer core verification
+        run: npm run verify:core
+      - name: Viewer tests
+        run: npm test -- --run
+      - name: Production Viewer build
+        run: npm run build
+
+  control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: control-plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Control Plane dependencies
+        run: npm install
+      - name: Dependency-free Control Plane core verification
+        run: npm run verify:core
+      - name: Control Plane tests
+        run: npm test
+
+  source-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse all JavaScript modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find src shared control-plane tests -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
