@@ -19,8 +19,18 @@
   },
   "allOf": [
     {
-      "if": {"required": ["integrity"], "properties": {"integrity": {"required": ["payload_version"], "properties": {"payload_version": {"const": "2"}}}}},
-      "then": {"required": ["request_id", "received_at", "completed_at"]}
+      "if": {
+        "type": "object",
+        "required": ["integrity"],
+        "properties": {
+          "integrity": {
+            "type": "object",
+            "required": ["payload_version"],
+            "properties": {"payload_version": {"const": "2"}}
+          }
+        }
+      },
+      "then": {"type": "object", "required": ["request_id", "received_at", "completed_at"]}
     }
   ]
 }
