@@ -20,6 +20,7 @@ export function renderView(root,current,previous=null){
   }
   const timeline=el('ol','timeline')
   for(const item of current.timeline){const text=`${item.sequence}. ${item.type} — ${item.label}`;const row=el('li',null,text);if(item.occurred_at){const time=el('time','timeline-time',timeLabel(item.occurred_at));time.dateTime=item.occurred_at;row.append(document.createTextNode(' · '),time)}timeline.append(row)}
-  const title=current.package_created_at?`Timeline · package ${timeLabel(current.package_created_at)}`:'Timeline'
-  root.append(el('h2','timeline-title',title),timeline)
+  const parts=[`Timeline · event schema v${current.schema_version}`]
+  if(current.package_created_at)parts.push(`package ${timeLabel(current.package_created_at)}`)
+  root.append(el('h2','timeline-title',parts.join(' · ')),timeline)
 }
