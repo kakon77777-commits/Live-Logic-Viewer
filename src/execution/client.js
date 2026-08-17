@@ -1,7 +1,8 @@
-import { parseAndValidateExecutionResult } from './validate-result.js'
+import { MAX_EXECUTION_RESULT_BYTES, parseAndValidateExecutionResult } from './validate-result.js'
 import { buildExecutionRequest, canonicalExecutionRequest } from '../../shared/execution-request.js'
 import { sha256Hex } from '../../shared/sha256.js'
 import { verifyExecutionResultIntegrity } from '../../shared/execution-result-integrity.js'
+import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
 import { safeExecutionLimits, validateExecutionCapabilities } from './capabilities.js'
 
 export const EXECUTION_ENDPOINT='/v1/jobs'
@@ -61,7 +62,9 @@ export async function submitRemoteExecution({source,accessToken,capabilities,fet
     if(controller.signal.aborted)throw new Error(`Remote execution request timed out after ${waitMs} ms`)
     throw error
   }finally{clearTimeout(timer)}
-  const text=await response.text()
+  let text
+  try{text=await readBoundedUtf8Message(response,MAX_EXECUTION_RESULT_BYTES,'execution response')}
+  catch(error){if(error instanceof BoundedUtf8Error)throw new Error(`Remote execution response rejected: ${error.message}`);throw error}
   if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}
   const envelope=parseAndValidateExecutionResult(text)
   await verifyExecutionProvenance(envelope,requestPayload)
