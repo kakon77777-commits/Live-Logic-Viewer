@@ -12,31 +12,33 @@ function validateKeyId(value) {
   return value
 }
 
+function publicOnly(jwk) {
+  if (!jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256' || typeof jwk.x !== 'string' || typeof jwk.y !== 'string') {
+    throw new Error('RESULT_SIGNING_PUBLIC_JWK must be an EC P-256 public key')
+  }
+  if (jwk.d) throw new Error('RESULT_SIGNING_PUBLIC_JWK must not contain private key material')
+  return Object.freeze({ kty:'EC', crv:'P-256', x:jwk.x, y:jwk.y })
+}
+
 export function resultSigningConfig(env = {}) {
   const unsignedDev = env.ALLOW_UNSIGNED_RESULTS_DEV === 'true'
   const hasAny = Boolean(env.RESULT_SIGNING_PRIVATE_JWK || env.RESULT_SIGNING_PUBLIC_JWK || env.RESULT_SIGNING_KEY_ID)
 
   if (unsignedDev && !hasAny) {
-    return Object.freeze({ required: false, algorithm: RESULT_INTEGRITY_ALGORITHM, key_id: null, public_jwk: null, private_jwk: null })
+    return Object.freeze({ required:false, algorithm:RESULT_INTEGRITY_ALGORITHM, key_id:null, public_jwk:null, private_jwk:null })
   }
 
   const keyId = validateKeyId(env.RESULT_SIGNING_KEY_ID)
-  const publicJwk = parseJwk(env.RESULT_SIGNING_PUBLIC_JWK, 'RESULT_SIGNING_PUBLIC_JWK')
+  const publicJwk = publicOnly(parseJwk(env.RESULT_SIGNING_PUBLIC_JWK, 'RESULT_SIGNING_PUBLIC_JWK'))
   const privateJwk = parseJwk(env.RESULT_SIGNING_PRIVATE_JWK, 'RESULT_SIGNING_PRIVATE_JWK')
-  if (publicJwk.d) throw new Error('RESULT_SIGNING_PUBLIC_JWK must not contain private key material')
-  if (!privateJwk.d) throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain private key material')
+  if (!privateJwk.d || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256') throw new Error('RESULT_SIGNING_PRIVATE_JWK must contain EC P-256 private key material')
 
-  return Object.freeze({ required: true, algorithm: RESULT_INTEGRITY_ALGORITHM, key_id: keyId, public_jwk: Object.freeze({ ...publicJwk }), private_jwk: Object.freeze({ ...privateJwk }) })
+  return Object.freeze({ required:true, algorithm:RESULT_INTEGRITY_ALGORITHM, key_id:keyId, public_jwk:publicJwk, private_jwk:Object.freeze({ ...privateJwk }) })
 }
 
 export function signingCapability(env = {}) {
   const config = resultSigningConfig(env)
-  return Object.freeze({
-    required: config.required,
-    algorithm: config.algorithm,
-    key_id: config.key_id,
-    public_jwk: config.public_jwk
-  })
+  return Object.freeze({ required:config.required, algorithm:config.algorithm, key_id:config.key_id, public_jwk:config.public_jwk })
 }
 
 export async function signCanonicalExecutionEnvelope(envelope, env = {}) {
