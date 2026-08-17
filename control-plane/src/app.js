@@ -1,10 +1,11 @@
-import { parseExecutionRequest, ExecutionProtocolError } from './protocol.js'
+import { parseExecutionRequest, ExecutionProtocolError, EXECUTION_LIMITS } from './protocol.js'
 import { canonicalizeExecutionResult } from './canonicalize.js'
 import { assertExecutionProvider, validateProviderRawResult } from './provider.js'
 import { enforceExecutionRateLimit } from './rate-limit.js'
 import { executionCapabilities } from './capabilities.js'
 import { signCanonicalExecutionEnvelope } from './signing.js'
 import { controlPlaneReadiness } from './readiness.js'
+import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
 
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'})
 function json(value,status=200,extraHeaders={}){return new Response(JSON.stringify(value),{status,headers:{...JSON_HEADERS,...extraHeaders}})}
@@ -40,8 +41,14 @@ export function createApplication(providerFactory){
     const contentType=request.headers.get('content-type')||''
     if(!contentType.toLowerCase().startsWith('application/json'))return json({error:'content_type_must_be_json'},415,cors)
     let parsed
-    try{parsed=parseExecutionRequest(await request.text())}
-    catch(error){if(error instanceof ExecutionProtocolError)return json({error:error.code,message:error.message},400,cors);return json({error:'invalid_request'},400,cors)}
+    try{
+      const body=await readBoundedUtf8Message(request,EXECUTION_LIMITS.maxRequestBytes,'execution request')
+      parsed=parseExecutionRequest(body)
+    }catch(error){
+      if(error instanceof BoundedUtf8Error)return json({error:error.code,message:error.message},error.code==='body_too_large'?413:400,cors)
+      if(error instanceof ExecutionProtocolError)return json({error:error.code,message:error.message},400,cors)
+      return json({error:'invalid_request'},400,cors)
+    }
     const jobId=crypto.randomUUID()
     const receivedAt=new Date().toISOString()
     const started=Date.now()
