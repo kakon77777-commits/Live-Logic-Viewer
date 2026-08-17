@@ -8,6 +8,7 @@ import { safeExecutionLimits, validateExecutionCapabilities } from './capabiliti
 export const EXECUTION_ENDPOINT='/v1/jobs'
 export const MAX_REMOTE_SOURCE_BYTES=64*1024
 export const MAX_CLIENT_WAIT_MS=15_000
+export const MIN_ACCESS_TOKEN_CHARACTERS=32
 function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
 
 export class ResultIntegrityTrustError extends Error {
@@ -44,7 +45,7 @@ async function verifyWithOptionalCapabilityRefresh(envelope,capabilities,refresh
 
 export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID(),refreshCapabilities}){
   if(typeof source!=='string'||!source.length)throw new Error('Python source is required')
-  if(typeof accessToken!=='string'||accessToken.length<16)throw new Error('A short-lived access token is required')
+  if(typeof accessToken!=='string'||accessToken.length<MIN_ACCESS_TOKEN_CHARACTERS)throw new Error(`A short-lived access token of at least ${MIN_ACCESS_TOKEN_CHARACTERS} characters is required`)
   if(typeof fetchImpl!=='function')throw new Error('fetch implementation is required')
   if(typeof requestIdFactory!=='function')throw new Error('requestIdFactory is required')
   if(refreshCapabilities!==undefined&&typeof refreshCapabilities!=='function')throw new Error('refreshCapabilities must be a function')
