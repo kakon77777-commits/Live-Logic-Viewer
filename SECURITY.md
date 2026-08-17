@@ -15,13 +15,14 @@
 - Remote execution result acceptance is ordered `closed schema → request/source provenance → detached signature`.
 - If capabilities declare result signatures required, an unsigned response is rejected rather than downgraded to legacy behavior.
 - The capability keyring is bounded and keyed by `key_id`; signatures from keys outside that trusted set are rejected.
+- Unknown result-signing keys may cause one same-origin capability refresh. Actual signature verification failure never downgrades to `unverified`.
 - Viewer-side remote waits are independently bounded with `AbortController`; browser timeout is not treated as epistemic false.
 - A short-lived access credential used by the MVP remote form is cleared from the input after submission and is not written to Web Storage.
 - Downloaded execution-result JSON is the already-validated inert envelope; downloading does not promote it to Evidence.
 
 ### Control Plane trust domain
 
-- v0.1 accepts Python only.
+- v0.1 execution requests accept Python only.
 - `network_policy.mode` must be explicitly `deny`; provider defaults are not security policy.
 - Source, wall time, and output have hard protocol ceilings.
 - User source is written to a fixed sandbox file and is not interpolated into the fixed host command.
@@ -34,8 +35,31 @@
 - `RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS` may contain only a bounded set of public verification keys for key-rotation grace; duplicate key IDs are rejected.
 - `ALLOW_UNSIGNED_RESULTS_DEV=true` is an explicit development-only bypass. Production does not silently fall back to unsigned results.
 - Production execution fails closed when the abuse-control binding is missing. `ALLOW_UNLIMITED_DEV=true` is a deliberate local-development bypass only.
+- `/health` proves liveness only. `/ready` checks origin/auth/rate-limit/signing/provider configuration without launching a sandbox or consuming execution quota.
 - Rate limiting is abuse control, not an exact billing/quota ledger.
 - Provider-specific runtime imports are kept out of the pure provider core tests.
+
+### Signed audit metadata
+
+Result-signature payload v2 cryptographically covers:
+
+- `job_id`;
+- client `request_id`;
+- Control Plane `received_at`;
+- Control Plane `completed_at`;
+- execution status/metadata;
+- stdout/stderr/truncation state;
+- source/request provenance hashes.
+
+Prototype payload v1 remains verifiable for compatibility, but v1 envelopes are forbidden from carrying `request_id`, `received_at`, or `completed_at`, because those fields were not covered by the v1 signature. This prevents unsigned audit metadata from being displayed as if it were protected by a valid legacy signature.
+
+### Dynamic Logic event time
+
+Event package v0.1 remains sequence-only for backward compatibility.
+
+Event package v0.2 adds canonical UTC `created_at` and per-event `occurred_at` fields. `sequence` remains the only replay ordering authority: wall-time metadata cannot reorder committed history. A v0.1 → v0.2 migration requires an explicit timestamp for every historical event and refuses to fabricate missing timestamps.
+
+When a verified execution result is explicitly recorded into a v0.2 Dynamic Logic session, the lifecycle event may preserve request id, signed execution completion time, Viewer record time, verification status, and signing key id. Raw stdout/stderr is still excluded from the event package.
 
 ### Epistemic integrity
 
