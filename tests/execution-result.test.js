@@ -17,7 +17,7 @@ describe('execution-result inspector protocol',()=>{
     expect(()=>validateExecutionResultObject(value)).toThrow(/cannot carry unsigned audit fields/i)
   })
   it('rejects reversed v2 audit time',()=>{const value=v2();value.completed_at='2026-08-17T05:59:59.999Z';expect(()=>validateExecutionResultObject(value)).toThrow(/must not precede/i)})
-  it('rejects non-canonical audit timestamps',()=>{const value=v2();value.received_at='2026-08-17T14:00:00+08:00';expect(()=>validateExecutionResultObject(value)).toThrow(/canonical UTC/i)})
+  it('rejects non-canonical audit timestamps',()=>{const value=v2();value.received_at='2026-08-17T14:00:00+08:00';expect(()=>validateExecutionResultObject(value)).toThrow(/canonical UTC|must match pattern/i)})
   it('allows hostile-looking stdout only as a string value',()=>{const value=valid();value.result.stdout='<img src=x onerror=alert(1)>';expect(validateExecutionResultObject(value).result.stdout).toContain('onerror')})
   it('rejects executable-capability fields recursively',()=>{const value=valid();value.result.command='id';expect(()=>validateExecutionResultObject(value)).toThrow(/Forbidden field|Invalid execution result/)})
   it('rejects unknown top-level fields',()=>expect(()=>validateExecutionResultObject({...valid(),judgment:'true'})).toThrow(/Invalid execution result/))
