@@ -4,6 +4,7 @@ import { assertExecutionProvider, validateProviderRawResult } from './provider.j
 import { enforceExecutionRateLimit } from './rate-limit.js'
 import { executionCapabilities } from './capabilities.js'
 import { signCanonicalExecutionEnvelope } from './signing.js'
+import { controlPlaneReadiness } from './readiness.js'
 
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'})
 function json(value,status=200,extraHeaders={}){return new Response(JSON.stringify(value),{status,headers:{...JSON_HEADERS,...extraHeaders}})}
@@ -21,6 +22,10 @@ export function createApplication(providerFactory){
       return new Response(null,{status:204,headers:cors})
     }
     if(request.method==='GET'&&url.pathname==='/health')return json({ok:true,service:'live-logic-control-plane'},200,cors)
+    if(request.method==='GET'&&url.pathname==='/ready'){
+      const report=controlPlaneReadiness(providerFactory,env)
+      return json(report,report.ready?200:503,cors)
+    }
     if(request.method==='GET'&&url.pathname==='/v1/capabilities'){
       try{return json(executionCapabilities(env),200,cors)}
       catch{return json({error:'result_signing_not_configured'},503,cors)}
@@ -40,7 +45,6 @@ export function createApplication(providerFactory){
     const jobId=crypto.randomUUID()
     const started=Date.now()
     try{
-      // Validate signing configuration before invoking any paid execution provider.
       executionCapabilities(env)
       const provider=assertExecutionProvider(providerFactory(env))
       const raw=validateProviderRawResult(await provider.executePython({jobId,request:parsed}))
