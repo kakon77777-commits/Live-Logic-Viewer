@@ -1,0 +1,47 @@
+name: Sync Integration Lockfiles
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sync-lockfiles:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/integration-v0.2'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/integration-v0.2
+          fetch-depth: 0
+      - name: Set up exact Node used by the verified dependency run
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+      - name: Generate lockfiles without lifecycle scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          npm --prefix control-plane install --package-lock-only --ignore-scripts
+      - name: Commit lockfiles only when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add package-lock.json control-plane/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lockfiles already synchronized.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: commit CI-generated dependency lockfiles'
+          git push origin HEAD:feat/integration-v0.2
