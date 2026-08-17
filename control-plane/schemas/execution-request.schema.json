@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evemisslab.com/live-logic/execution-request.schema.json",
+  "title": "Live Logic Execution Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "runner", "source", "network_policy", "limits"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "runner": {"const": "python"},
+    "source": {"type": "string", "minLength": 1, "maxLength": 65536},
+    "network_policy": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "deny"}}},
+    "limits": {"type": "object", "additionalProperties": false, "required": ["wall_ms", "output_bytes"], "properties": {"wall_ms": {"type": "integer", "minimum": 100, "maximum": 10000}, "output_bytes": {"type": "integer", "minimum": 1024, "maximum": 65536}}}
+  }
+}
