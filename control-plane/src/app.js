@@ -43,12 +43,14 @@ export function createApplication(providerFactory){
     try{parsed=parseExecutionRequest(await request.text())}
     catch(error){if(error instanceof ExecutionProtocolError)return json({error:error.code,message:error.message},400,cors);return json({error:'invalid_request'},400,cors)}
     const jobId=crypto.randomUUID()
+    const receivedAt=new Date().toISOString()
     const started=Date.now()
     try{
       executionCapabilities(env)
       const provider=assertExecutionProvider(providerFactory(env))
       const raw=validateProviderRawResult(await provider.executePython({jobId,request:parsed}))
-      const envelope=await canonicalizeExecutionResult({jobId,request:parsed,raw,wallMs:Date.now()-started})
+      const completedAt=new Date().toISOString()
+      const envelope=await canonicalizeExecutionResult({jobId,request:parsed,raw,wallMs:Date.now()-started,receivedAt,completedAt})
       const signed=await signCanonicalExecutionEnvelope(envelope,env)
       return json(signed,200,cors)
     }catch(error){
