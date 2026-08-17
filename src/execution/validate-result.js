@@ -19,6 +19,28 @@ function inspect(value, depth=1, path='$') {
     inspect(child,depth+1,`${path}.${key}`)
   }
 }
+function canonicalTimestamp(value,label){
+  const time=Date.parse(value)
+  if(!Number.isFinite(time)||new Date(time).toISOString()!==value)throw new ExecutionResultValidationError(`${label} must be a canonical UTC timestamp`)
+  return time
+}
+function validateIntegritySemantics(value){
+  const auditFields=['request_id','received_at','completed_at']
+  const payloadVersion=value.integrity?.payload_version??(value.integrity?'1':null)
+  if(payloadVersion==='1'){
+    const present=auditFields.filter(field=>value[field]!==undefined)
+    if(present.length)throw new ExecutionResultValidationError(`Legacy signature payload v1 cannot carry unsigned audit fields: ${present.join(', ')}`)
+  }
+  if(payloadVersion==='2'){
+    const received=canonicalTimestamp(value.received_at,'received_at')
+    const completed=canonicalTimestamp(value.completed_at,'completed_at')
+    if(completed<received)throw new ExecutionResultValidationError('completed_at must not precede received_at')
+  } else {
+    if(value.received_at!==undefined)canonicalTimestamp(value.received_at,'received_at')
+    if(value.completed_at!==undefined)canonicalTimestamp(value.completed_at,'completed_at')
+    if(value.received_at!==undefined&&value.completed_at!==undefined&&Date.parse(value.completed_at)<Date.parse(value.received_at))throw new ExecutionResultValidationError('completed_at must not precede received_at')
+  }
+}
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
   for (const child of Object.values(value)) deepFreeze(child)
@@ -30,6 +52,7 @@ export function validateExecutionResultObject(value) {
     const detail=validateSchema.errors?.map(e=>`${e.instancePath||'$'} ${e.message}`).join('; ')||'schema mismatch'
     throw new ExecutionResultValidationError(`Invalid execution result: ${detail}`)
   }
+  validateIntegritySemantics(value)
   return deepFreeze(value)
 }
 export function parseAndValidateExecutionResult(text) {
