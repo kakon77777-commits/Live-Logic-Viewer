@@ -11,10 +11,12 @@
 - Formula TeX is presentation-only and KaTeX uses `trust: false`; input cannot provide KaTeX options or macros.
 - Replay changes only an in-memory cursor and never means re-execution.
 - Imported and internally-derived event packages obey the same size/schema/forbidden-field limits.
+- User-selected local JSON files are size-checked and fatal UTF-8 decoded from bytes; `File.text()` replacement decoding is not used for canonical imports.
 - Built-in same-origin demo responses are streamed through the same bounded UTF-8 reader instead of being trusted as unlimited files.
 - Remote execution remains disabled unless the same-origin capabilities document is exactly compatible with the Viewer contract.
 - Capability responses and remote execution results are byte-bounded while streaming and use fatal UTF-8 decoding before JSON parsing.
 - Remote execution result acceptance is ordered `closed schema → request/source provenance → detached signature`.
+- Execution-result cross-field semantics are validated: a completed result cannot simultaneously claim timeout, truncation, or non-zero exit status; a failed result must record an actual failure condition.
 - If capabilities declare result signatures required, an unsigned response is rejected rather than downgraded to legacy behavior.
 - The capability keyring is bounded and keyed by `key_id`; signatures from keys outside that trusted set are rejected.
 - P-256 public JWK coordinates must use canonical 32-byte base64url encoding before WebCrypto is invoked.
@@ -31,6 +33,8 @@
 - Source, wall time, output, and HTTP request-body sizes have hard protocol ceilings.
 - Request bodies are bounded during streaming before JSON parsing; oversized declared/streamed bodies and invalid UTF-8 fail before provider execution.
 - `CONTROL_API_TOKEN` must contain at least 32 characters for readiness/authentication. The token is temporary MVP authorization, not the final identity/session design.
+- The abuse-control rate gate is applied to `/v1/jobs` attempts before bearer acceptance so invalid credentials do not bypass request throttling.
+- The temporary bearer comparison uses a fixed-length byte loop rather than a prefix-short-circuit string comparison; public multi-user deployment should still replace/front this gate with the selected identity/session system.
 - User source is written to a fixed sandbox file and is not interpolated into the fixed host command.
 - The Cloudflare provider disables the default session and launches Python through a fixed `env -i` command with only a minimal PATH/HOME/locale/Python environment. Worker secrets are not intentionally inherited by the Python process.
 - Managed execution is one-job/one-sandbox and converges on full teardown.
@@ -43,7 +47,7 @@
 - `RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS` may contain only a bounded set of public verification keys for key-rotation grace; duplicate key IDs are rejected.
 - `ALLOW_UNSIGNED_RESULTS_DEV=true` is an explicit development-only bypass. Production does not silently fall back to unsigned results.
 - Production execution fails closed when the abuse-control binding is missing. `ALLOW_UNLIMITED_DEV=true` is a deliberate local-development bypass only.
-- `/health` proves liveness only. `/ready` checks origin/auth/rate-limit/signing/provider configuration without launching a sandbox or consuming execution quota.
+- `/health` proves liveness only. `/ready` evaluates origin/auth/rate-limit/signing/provider configuration without launching a sandbox or consuming execution quota, but the public HTTP response exposes only minimal `{ready, service}` state rather than per-check configuration details.
 - Rate limiting is abuse control, not an exact billing/quota ledger.
 - Provider-specific runtime imports are kept out of the pure provider core tests.
 
