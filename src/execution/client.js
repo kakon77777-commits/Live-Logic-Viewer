@@ -1,10 +1,48 @@
 import { parseAndValidateExecutionResult } from './validate-result.js'
 import { buildExecutionRequest, canonicalExecutionRequest } from '../../shared/execution-request.js'
 import { sha256Hex } from '../../shared/sha256.js'
-import { safeExecutionLimits } from './capabilities.js'
+import { verifyExecutionResultIntegrity } from '../../shared/execution-result-integrity.js'
+import { safeExecutionLimits, validateExecutionCapabilities } from './capabilities.js'
 
 export const EXECUTION_ENDPOINT='/v1/jobs'
 export const MAX_REMOTE_SOURCE_BYTES=64*1024
 function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
-export async function verifyExecutionProvenance(envelope,request){const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))]);if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch');if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch');return envelope}
-export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID()}){if(typeof source!=='string'||!source.length)throw new Error('Python source is required');if(typeof accessToken!=='string'||accessToken.length<16)throw new Error('A short-lived access token is required');if(typeof fetchImpl!=='function')throw new Error('fetch implementation is required');if(typeof requestIdFactory!=='function')throw new Error('requestIdFactory is required');const safe=safeExecutionLimits(capabilities);if(utf8Bytes(source)>safe.max_source_bytes)throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`);const requestId=requestIdFactory();const requestPayload=buildExecutionRequest(source,{wall_ms:safe.wall_ms,output_bytes:safe.output_bytes},requestId);const response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)});const text=await response.text();if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}const envelope=parseAndValidateExecutionResult(text);return verifyExecutionProvenance(envelope,requestPayload)}
+
+export async function verifyExecutionProvenance(envelope,request){
+  const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))])
+  if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch')
+  if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch')
+  return envelope
+}
+
+export async function verifyRemoteResultIntegrity(envelope,capabilities){
+  const caps=validateExecutionCapabilities(capabilities)
+  const policy=caps.result_integrity
+  if(policy.required){
+    await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)
+    return envelope
+  }
+  if(envelope.integrity){
+    if(!policy.public_jwk||!policy.key_id)throw new Error('Signed result received without a trusted public key capability')
+    await verifyExecutionResultIntegrity(envelope,policy.public_jwk,policy.key_id)
+  }
+  return envelope
+}
+
+export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID()}){
+  if(typeof source!=='string'||!source.length)throw new Error('Python source is required')
+  if(typeof accessToken!=='string'||accessToken.length<16)throw new Error('A short-lived access token is required')
+  if(typeof fetchImpl!=='function')throw new Error('fetch implementation is required')
+  if(typeof requestIdFactory!=='function')throw new Error('requestIdFactory is required')
+  const safe=safeExecutionLimits(capabilities)
+  if(utf8Bytes(source)>safe.max_source_bytes)throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`)
+  const requestId=requestIdFactory()
+  const requestPayload=buildExecutionRequest(source,{wall_ms:safe.wall_ms,output_bytes:safe.output_bytes},requestId)
+  const response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)})
+  const text=await response.text()
+  if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}
+  const envelope=parseAndValidateExecutionResult(text)
+  await verifyExecutionProvenance(envelope,requestPayload)
+  await verifyRemoteResultIntegrity(envelope,capabilities)
+  return envelope
+}
