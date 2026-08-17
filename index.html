@@ -1,34 +1,17 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';">
   <title>Live Logic Viewer</title>
 </head>
-<body>
-  <main class="app-shell">
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">EveMissLab · Dynamic Judgment</p>
-        <h1>Live Logic Viewer</h1>
-        <p>Validated event packages → deterministic projection → safe replay.</p>
-      </div>
-      <div class="import-actions">
-        <label class="file-button">Import Events<input id="package-file" type="file" accept=".json,application/json"></label>
-        <label class="file-button">Inspect Execution Result<input id="execution-result-file" type="file" accept=".json,application/json"></label>
-      </div>
-    </header>
-    <section id="status" class="status" aria-live="polite"></section>
-    <section id="controls" class="controls" aria-label="Replay controls">
-      <button id="prev" type="button">←</button><button id="play" type="button">▶ Play</button><button id="next" type="button">→</button><button id="live" type="button">Live</button><span id="cursor-label" class="cursor-label"></span>
-    </section>
-    <section id="viewer" class="viewer" aria-live="polite"></section>
-    <section class="execution-inspector-shell" aria-label="Execution result inspector">
-      <div class="section-heading"><div><p class="eyebrow">Separate trust object</p><h2>Execution Result Inspector</h2></div><button id="load-demo-execution" type="button">Load safe demo result</button></div>
-      <div id="execution-result" aria-live="polite"></div>
-    </section>
-  </main>
-  <script type="module" src="/src/main.js"></script>
-</body>
-</html>
+<body><main class="app-shell">
+  <header class="app-header"><div><p class="eyebrow">EveMissLab · Dynamic Judgment</p><h1>Live Logic Viewer</h1><p>Validated event packages → deterministic projection → safe replay.</p></div>
+    <div class="import-actions"><label class="file-button">Import Events<input id="package-file" type="file" accept=".json,application/json"></label><label class="file-button">Inspect Execution Result<input id="execution-result-file" type="file" accept=".json,application/json"></label></div>
+  </header>
+  <section id="status" class="status" aria-live="polite"></section>
+  <section id="controls" class="controls" aria-label="Replay controls"><button id="prev" type="button">←</button><button id="play" type="button">▶ Play</button><button id="next" type="button">→</button><button id="live" type="button">Live</button><span id="cursor-label" class="cursor-label"></span></section>
+  <section id="viewer" class="viewer" aria-live="polite"></section>
+  <section class="remote-execution-shell" aria-label="Remote managed execution"><div class="section-heading"><div><p class="eyebrow">Managed execution · separate trust domain</p><h2>Remote Python Execution</h2></div></div><p class="remote-execution-note">Source is sent to the same-origin control plane and never executed by this Viewer. v0.1 always requests outbound network deny.</p><form id="remote-execution-form" class="remote-execution-form"><label>Python source<textarea id="remote-source" rows="7" spellcheck="false">print(1 + 1)</textarea></label><label>Short-lived access token<input id="remote-token" type="password" autocomplete="off" minlength="16" required></label><button id="remote-run" type="submit">Run in managed sandbox</button></form></section>
+  <section class="execution-inspector-shell" aria-label="Execution result inspector"><div class="section-heading"><div><p class="eyebrow">Separate trust object</p><h2>Execution Result Inspector</h2></div><button id="load-demo-execution" type="button">Load safe demo result</button></div><div id="execution-result" aria-live="polite"></div></section>
+</main><script type="module" src="/src/main.js"></script></body></html>
