@@ -19,6 +19,8 @@ jobs:
           node-version: '22'
       - name: Install Viewer dependencies
         run: npm install
+      - name: Report Viewer direct dependencies
+        run: npm ls --depth=0
       - name: Dependency-free Viewer core verification
         run: npm run verify:core
       - name: Viewer tests
@@ -39,6 +41,8 @@ jobs:
           node-version: '22'
       - name: Install Control Plane dependencies
         run: npm install
+      - name: Report Control Plane direct dependencies
+        run: npm ls --depth=0
       - name: Dependency-free Control Plane core verification
         run: npm run verify:core
       - name: Control Plane tests
