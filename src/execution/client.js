@@ -3,78 +3,8 @@ import { buildExecutionRequest, canonicalExecutionRequest } from '../../shared/e
 import { sha256Hex } from '../../shared/sha256.js'
 import { safeExecutionLimits } from './capabilities.js'
 
-export const EXECUTION_ENDPOINT = '/v1/jobs'
-export const MAX_REMOTE_SOURCE_BYTES = 64 * 1024
-
-function utf8Bytes(text) {
-  return new TextEncoder().encode(String(text)).byteLength
-}
-
-export async function verifyExecutionProvenance(envelope, request) {
-  const [expectedSource, expectedRequest] = await Promise.all([
-    sha256Hex(request.source),
-    sha256Hex(canonicalExecutionRequest(request))
-  ])
-  if (envelope.provenance.source_sha256 !== expectedSource) {
-    throw new Error('Execution result source provenance mismatch')
-  }
-  if (envelope.provenance.request_sha256 !== expectedRequest) {
-    throw new Error('Execution result request provenance mismatch')
-  }
-  return envelope
-}
-
-export async function submitRemoteExecution({
-  source,
-  accessToken,
-  capabilities,
-  fetchImpl = fetch
-}) {
-  if (typeof source !== 'string' || !source.length) {
-    throw new Error('Python source is required')
-  }
-  if (typeof accessToken !== 'string' || accessToken.length < 16) {
-    throw new Error('A short-lived access token is required')
-  }
-  if (typeof fetchImpl !== 'function') {
-    throw new Error('fetch implementation is required')
-  }
-
-  // Capability validation is repeated here even when the UI has already done
-  // discovery. A caller cannot bypass the fail-closed handshake by invoking
-  // this function directly.
-  const safe = safeExecutionLimits(capabilities)
-  if (utf8Bytes(source) > safe.max_source_bytes) {
-    throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`)
-  }
-
-  const requestPayload = buildExecutionRequest(source, {
-    wall_ms: safe.wall_ms,
-    output_bytes: safe.output_bytes
-  })
-
-  const response = await fetchImpl(EXECUTION_ENDPOINT, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    referrerPolicy: 'no-referrer',
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(requestPayload)
-  })
-
-  const text = await response.text()
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`
-    try {
-      const parsed = JSON.parse(text)
-      if (typeof parsed?.error === 'string') detail += `: ${parsed.error}`
-    } catch {}
-    throw new Error(`Remote execution failed: ${detail}`)
-  }
-
-  const envelope = parseAndValidateExecutionResult(text)
-  return verifyExecutionProvenance(envelope, requestPayload)
-}
+export const EXECUTION_ENDPOINT='/v1/jobs'
+export const MAX_REMOTE_SOURCE_BYTES=64*1024
+function utf8Bytes(text){return new TextEncoder().encode(String(text)).byteLength}
+export async function verifyExecutionProvenance(envelope,request){const[expectedSource,expectedRequest]=await Promise.all([sha256Hex(request.source),sha256Hex(canonicalExecutionRequest(request))]);if(envelope.provenance.source_sha256!==expectedSource)throw new Error('Execution result source provenance mismatch');if(envelope.provenance.request_sha256!==expectedRequest)throw new Error('Execution result request provenance mismatch');return envelope}
+export async function submitRemoteExecution({source,accessToken,capabilities,fetchImpl=fetch,requestIdFactory=()=>crypto.randomUUID()}){if(typeof source!=='string'||!source.length)throw new Error('Python source is required');if(typeof accessToken!=='string'||accessToken.length<16)throw new Error('A short-lived access token is required');if(typeof fetchImpl!=='function')throw new Error('fetch implementation is required');if(typeof requestIdFactory!=='function')throw new Error('requestIdFactory is required');const safe=safeExecutionLimits(capabilities);if(utf8Bytes(source)>safe.max_source_bytes)throw new Error(`Python source exceeds ${safe.max_source_bytes} bytes`);const requestId=requestIdFactory();const requestPayload=buildExecutionRequest(source,{wall_ms:safe.wall_ms,output_bytes:safe.output_bytes},requestId);const response=await fetchImpl(EXECUTION_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',referrerPolicy:'no-referrer',headers:{authorization:`Bearer ${accessToken}`,'content-type':'application/json'},body:JSON.stringify(requestPayload)});const text=await response.text();if(!response.ok){let detail=`HTTP ${response.status}`;try{const parsed=JSON.parse(text);if(typeof parsed?.error==='string')detail+=`: ${parsed.error}`}catch{}throw new Error(`Remote execution failed: ${detail}`)}const envelope=parseAndValidateExecutionResult(text);return verifyExecutionProvenance(envelope,requestPayload)}
