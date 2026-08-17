@@ -1,0 +1,35 @@
+openapi: 3.1.0
+info:
+  title: Live Logic Control Plane
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      responses:
+        '200': { description: Service health }
+  /v1/capabilities:
+    get:
+      responses:
+        '200': { description: Fixed execution capabilities and safety limits }
+  /v1/jobs:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/execution-request.schema.json'
+      responses:
+        '200': { description: Canonical execution result envelope }
+        '400': { description: Invalid execution request }
+        '401': { description: Missing or invalid access credential }
+        '403': { description: Browser origin not allowed }
+        '429': { description: Rate limit exceeded }
+        '502': { description: Managed execution provider failure }
+        '503': { description: Required server security binding/configuration missing }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
