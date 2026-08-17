@@ -76,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           COMMIT="$(git rev-parse HEAD)"
-          ROOT="Live-Logic-Viewer_Basic-Complete_v0.1"
+          ROOT="Live-Logic-Viewer_Integration-v0.2"
           ZIP="${ROOT}_${COMMIT:0:12}.zip"
           mkdir "$ROOT"
           git archive HEAD | tar -x -C "$ROOT"
