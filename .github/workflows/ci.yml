@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ls --all --json > viewer-dependency-tree.json
-          sha256sum viewer-dependency-tree.json > viewer-dependency-tree.json.sha256
+          sha256sum viewer-dependency-tree.json package-lock.json > viewer-dependency-manifest.sha256
       - name: Audit Viewer dependencies
         run: npm audit --audit-level=high
       - name: Upload Viewer dependency inventory
@@ -34,8 +34,9 @@ jobs:
         with:
           name: live-logic-viewer-dependencies-${{ github.sha }}
           path: |
+            package-lock.json
             viewer-dependency-tree.json
-            viewer-dependency-tree.json.sha256
+            viewer-dependency-manifest.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Dependency-free Viewer core verification
@@ -65,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ls --all --json > control-plane-dependency-tree.json
-          sha256sum control-plane-dependency-tree.json > control-plane-dependency-tree.json.sha256
+          sha256sum control-plane-dependency-tree.json package-lock.json > control-plane-dependency-manifest.sha256
       - name: Audit Control Plane dependencies
         run: npm audit --audit-level=high
       - name: Upload Control Plane dependency inventory
@@ -73,8 +74,9 @@ jobs:
         with:
           name: live-logic-control-plane-dependencies-${{ github.sha }}
           path: |
+            control-plane/package-lock.json
             control-plane/control-plane-dependency-tree.json
-            control-plane/control-plane-dependency-tree.json.sha256
+            control-plane/control-plane-dependency-manifest.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Dependency-free Control Plane core verification
