@@ -1,0 +1,25 @@
+import { parseAndValidateExecutionResult } from './validate-result.js'
+
+export const EXECUTION_ENDPOINT = '/v1/jobs'
+export const MAX_REMOTE_SOURCE_BYTES = 64 * 1024
+const DEFAULT_LIMITS = Object.freeze({ wall_ms: 5000, output_bytes: 65536 })
+function utf8Bytes(text) { return new TextEncoder().encode(String(text)).byteLength }
+
+export async function submitRemoteExecution({ source, accessToken, fetchImpl = fetch }) {
+  if (typeof source !== 'string' || !source.length) throw new Error('Python source is required')
+  if (utf8Bytes(source) > MAX_REMOTE_SOURCE_BYTES) throw new Error('Python source exceeds 64 KiB')
+  if (typeof accessToken !== 'string' || accessToken.length < 16) throw new Error('A short-lived access token is required')
+  if (typeof fetchImpl !== 'function') throw new Error('fetch implementation is required')
+  const response = await fetchImpl(EXECUTION_ENDPOINT, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ schema_version: '0.1', runner: 'python', source, network_policy: { mode: 'deny' }, limits: DEFAULT_LIMITS })
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`
+    try { const parsed = JSON.parse(text); if (typeof parsed?.error === 'string') detail += `: ${parsed.error}` } catch {}
+    throw new Error(`Remote execution failed: ${detail}`)
+  }
+  return parseAndValidateExecutionResult(text)
+}
