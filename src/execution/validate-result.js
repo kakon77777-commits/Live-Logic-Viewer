@@ -41,6 +41,19 @@ function validateIntegritySemantics(value){
     if(value.received_at!==undefined&&value.completed_at!==undefined&&Date.parse(value.completed_at)<Date.parse(value.received_at))throw new ExecutionResultValidationError('completed_at must not precede received_at')
   }
 }
+function validateExecutionSemantics(value){
+  const { status, execution, result }=value
+  const successful=execution.exit_code===0&&!execution.timed_out&&!result.truncated
+  if(status==='completed'&&!successful){
+    throw new ExecutionResultValidationError('Completed execution result must have exit_code 0, timed_out false, and truncated false')
+  }
+  if(status==='failed'&&successful){
+    throw new ExecutionResultValidationError('Failed execution result must record a non-zero/null exit code, timeout, or truncation condition')
+  }
+  if(execution.exit_code===null&&!execution.timed_out&&!result.truncated){
+    throw new ExecutionResultValidationError('Null exit_code requires timeout or truncation failure metadata')
+  }
+}
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
   for (const child of Object.values(value)) deepFreeze(child)
@@ -53,6 +66,7 @@ export function validateExecutionResultObject(value) {
     throw new ExecutionResultValidationError(`Invalid execution result: ${detail}`)
   }
   validateIntegritySemantics(value)
+  validateExecutionSemantics(value)
   return deepFreeze(value)
 }
 export function parseAndValidateExecutionResult(text) {
