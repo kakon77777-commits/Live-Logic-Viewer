@@ -8,10 +8,24 @@ import { controlPlaneReadiness } from './readiness.js'
 import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
 
 export const MIN_CONTROL_API_TOKEN_CHARACTERS=32
+export const MAX_CONTROL_API_TOKEN_CHARACTERS=4096
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'})
+const encoder=new TextEncoder()
 function json(value,status=200,extraHeaders={}){return new Response(JSON.stringify(value),{status,headers:{...JSON_HEADERS,...extraHeaders}})}
 function corsHeaders(request,env){const origin=request.headers.get('origin');const allowed=env?.VIEWER_ORIGIN;if(!origin)return{};if(!allowed||origin!==allowed)return null;return{'access-control-allow-origin':allowed,'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'authorization, content-type','vary':'Origin'}}
-function authorized(request,env){const token=env?.CONTROL_API_TOKEN;if(typeof token!=='string'||token.length<MIN_CONTROL_API_TOKEN_CHARACTERS)return'misconfigured';return(request.headers.get('authorization')||'')===`Bearer ${token}`}
+function constantTimeEqualText(left,right){
+  const a=encoder.encode(String(left)),b=encoder.encode(String(right)),max=Math.max(a.length,b.length)
+  let diff=a.length^b.length
+  for(let index=0;index<max;index++)diff|=(a[index]??0)^(b[index]??0)
+  return diff===0
+}
+function authorized(request,env){
+  const token=env?.CONTROL_API_TOKEN
+  if(typeof token!=='string'||token.length<MIN_CONTROL_API_TOKEN_CHARACTERS||token.length>MAX_CONTROL_API_TOKEN_CHARACTERS)return'misconfigured'
+  const header=request.headers.get('authorization')||''
+  if(header.length>MAX_CONTROL_API_TOKEN_CHARACTERS+16)return false
+  return constantTimeEqualText(header,`Bearer ${token}`)
+}
 
 export function createApplication(providerFactory){
   if(typeof providerFactory!=='function')throw new TypeError('providerFactory must be a function')
@@ -26,19 +40,19 @@ export function createApplication(providerFactory){
     if(request.method==='GET'&&url.pathname==='/health')return json({ok:true,service:'live-logic-control-plane'},200,cors)
     if(request.method==='GET'&&url.pathname==='/ready'){
       const report=controlPlaneReadiness(providerFactory,env)
-      return json(report,report.ready?200:503,cors)
+      return json({ready:report.ready,service:report.service},report.ready?200:503,cors)
     }
     if(request.method==='GET'&&url.pathname==='/v1/capabilities'){
       try{return json(executionCapabilities(env),200,cors)}
       catch{return json({error:'result_signing_not_configured'},503,cors)}
     }
     if(!(request.method==='POST'&&url.pathname==='/v1/jobs'))return json({error:'not_found'},404,cors)
-    const auth=authorized(request,env)
-    if(auth==='misconfigured')return json({error:'server_misconfigured'},503,cors)
-    if(auth!==true)return json({error:'unauthorized'},401,cors)
     const rate=await enforceExecutionRateLimit(request,env)
     if(rate.misconfigured)return json({error:'rate_limiter_not_configured'},503,cors)
     if(!rate.allowed)return json({error:'rate_limited'},429,cors)
+    const auth=authorized(request,env)
+    if(auth==='misconfigured')return json({error:'server_misconfigured'},503,cors)
+    if(auth!==true)return json({error:'unauthorized'},401,cors)
     const contentType=request.headers.get('content-type')||''
     if(!contentType.toLowerCase().startsWith('application/json'))return json({error:'content_type_must_be_json'},415,cors)
     let parsed
