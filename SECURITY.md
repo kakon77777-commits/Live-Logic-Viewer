@@ -11,27 +11,35 @@
 - Formula TeX is presentation-only and KaTeX uses `trust: false`; input cannot provide KaTeX options or macros.
 - Replay changes only an in-memory cursor and never means re-execution.
 - Imported and internally-derived event packages obey the same size/schema/forbidden-field limits.
+- Built-in same-origin demo responses are streamed through the same bounded UTF-8 reader instead of being trusted as unlimited files.
 - Remote execution remains disabled unless the same-origin capabilities document is exactly compatible with the Viewer contract.
+- Capability responses and remote execution results are byte-bounded while streaming and use fatal UTF-8 decoding before JSON parsing.
 - Remote execution result acceptance is ordered `closed schema → request/source provenance → detached signature`.
 - If capabilities declare result signatures required, an unsigned response is rejected rather than downgraded to legacy behavior.
 - The capability keyring is bounded and keyed by `key_id`; signatures from keys outside that trusted set are rejected.
+- P-256 public JWK coordinates must use canonical 32-byte base64url encoding before WebCrypto is invoked.
 - Unknown result-signing keys may cause one same-origin capability refresh. Actual signature verification failure never downgrades to `unverified`.
 - Viewer-side remote waits are independently bounded with `AbortController`; browser timeout is not treated as epistemic false.
-- A short-lived access credential used by the MVP remote form is cleared from the input after submission and is not written to Web Storage.
+- The temporary bearer execution credential must contain at least 32 characters. It is cleared from the input after submission and is not written to Web Storage.
 - Downloaded execution-result JSON is the already-validated inert envelope; downloading does not promote it to Evidence.
+- The production Viewer bundle is scanned in CI for Control Plane secret/provider markers after the Vite build.
 
 ### Control Plane trust domain
 
 - v0.1 execution requests accept Python only.
 - `network_policy.mode` must be explicitly `deny`; provider defaults are not security policy.
-- Source, wall time, and output have hard protocol ceilings.
+- Source, wall time, output, and HTTP request-body sizes have hard protocol ceilings.
+- Request bodies are bounded during streaming before JSON parsing; oversized declared/streamed bodies and invalid UTF-8 fail before provider execution.
+- `CONTROL_API_TOKEN` must contain at least 32 characters for readiness/authentication. The token is temporary MVP authorization, not the final identity/session design.
 - User source is written to a fixed sandbox file and is not interpolated into the fixed host command.
+- The Cloudflare provider disables the default session and launches Python through a fixed `env -i` command with only a minimal PATH/HOME/locale/Python environment. Worker secrets are not intentionally inherited by the Python process.
 - Managed execution is one-job/one-sandbox and converges on full teardown.
 - stdout/stderr is bounded while execution is running; overflow destroys the sandbox.
 - wall-time expiration destroys the sandbox rather than merely disconnecting from a still-running process.
 - Provider raw results must match the exact provider conformance contract before canonicalization; unknown fields or structured stdout/stderr fail closed.
 - Production execution validates result-signing configuration before invoking a paid provider.
 - Production result signing uses ECDSA P-256 / SHA-256. Only the active signing key has private material.
+- P-256 public coordinates and private scalar must use canonical 32-byte base64url encoding.
 - `RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS` may contain only a bounded set of public verification keys for key-rotation grace; duplicate key IDs are rejected.
 - `ALLOW_UNSIGNED_RESULTS_DEV=true` is an explicit development-only bypass. Production does not silently fall back to unsigned results.
 - Production execution fails closed when the abuse-control binding is missing. `ALLOW_UNLIMITED_DEV=true` is a deliberate local-development bypass only.
@@ -60,6 +68,16 @@ Event package v0.1 remains sequence-only for backward compatibility.
 Event package v0.2 adds canonical UTC `created_at` and per-event `occurred_at` fields. `sequence` remains the only replay ordering authority: wall-time metadata cannot reorder committed history. A v0.1 → v0.2 migration requires an explicit timestamp for every historical event and refuses to fabricate missing timestamps.
 
 When a verified execution result is explicitly recorded into a v0.2 Dynamic Logic session, the lifecycle event may preserve request id, signed execution completion time, Viewer record time, verification status, and signing key id. Raw stdout/stderr is still excluded from the event package.
+
+### Replay integrity and reproducibility
+
+- Replay fingerprint JSON has a closed schema and versions its canonicalization, hash algorithm, projector, event schema, and cursor.
+- `event_prefix_sha256` identifies the exact committed event prefix; `projection_sha256` identifies the deterministic state produced from that prefix.
+- Fingerprints are audit/reproducibility objects, not truth proofs.
+- Viewer and Control Plane direct dependencies are exact-version pinned and committed with npm lockfiles.
+- CI uses exact Node `22.23.2`, `npm ci`, high-severity `npm audit`, dependency-tree artifacts, and SHA manifests.
+- GitHub Actions are pinned to full immutable commit SHAs; regression tests reject mutable `actions/*@vN` tags.
+- CI archives commit-matched source snapshots with per-file SHA-256 manifests.
 
 ### Epistemic integrity
 
