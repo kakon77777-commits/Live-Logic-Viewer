@@ -1,18 +1,41 @@
 openapi: 3.1.0
 info:
   title: Live Logic Control Plane
-  version: 0.1.0
+  version: 0.2.0
+  description: >-
+    Same-origin orchestration API for managed Python execution. Execution
+    results remain a separate trust object and are never Dynamic Logic evidence
+    by protocol implication.
 paths:
   /health:
     get:
+      summary: Liveness only
       responses:
-        '200': { description: Service health }
+        '200':
+          description: Worker process is alive; this does not imply safe execution readiness.
+  /ready:
+    get:
+      summary: Deployment-independent readiness report
+      responses:
+        '200':
+          description: Required origin, authentication, abuse-control, signing, and provider bindings are configured.
+        '503':
+          description: One or more required safety bindings or signing settings are missing.
   /v1/capabilities:
     get:
+      summary: Fixed public execution safety contract
       responses:
-        '200': { description: Fixed execution capabilities and safety limits }
+        '200':
+          description: Narrow Viewer-compatible execution capability document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionCapabilities'
+        '503':
+          description: Result-signing configuration is incomplete.
   /v1/jobs:
     post:
+      summary: Execute one bounded Python job in a managed sandbox
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -21,15 +44,86 @@ paths:
             schema:
               $ref: './schemas/execution-request.schema.json'
       responses:
-        '200': { description: Canonical execution result envelope }
+        '200':
+          description: Canonical execution result envelope. Production responses are signed when required by capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/execution-result.schema.json'
         '400': { description: Invalid execution request }
         '401': { description: Missing or invalid access credential }
         '403': { description: Browser origin not allowed }
-        '429': { description: Rate limit exceeded }
+        '415': { description: Request content type is not application/json }
+        '429': { description: Abuse-control rate limit exceeded }
         '502': { description: Managed execution provider failure }
-        '503': { description: Required server security binding/configuration missing }
+        '503': { description: Required server safety binding/configuration missing }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+  schemas:
+    PublicP256Jwk:
+      type: object
+      additionalProperties: false
+      required: [kty, crv, x, y]
+      properties:
+        kty: { const: EC }
+        crv: { const: P-256 }
+        x: { type: string, minLength: 1 }
+        y: { type: string, minLength: 1 }
+    VerificationKey:
+      type: object
+      additionalProperties: false
+      required: [key_id, public_jwk]
+      properties:
+        key_id:
+          type: string
+          pattern: '^[A-Za-z0-9._:-]{1,128}$'
+        public_jwk:
+          $ref: '#/components/schemas/PublicP256Jwk'
+    ExecutionCapabilities:
+      type: object
+      additionalProperties: false
+      required: [schema_version, runners, network_policies, limits, execution_result_is_evidence, result_integrity]
+      properties:
+        schema_version: { const: '0.1' }
+        runners:
+          type: array
+          prefixItems: [{ const: python }]
+          minItems: 1
+          maxItems: 1
+        network_policies:
+          type: array
+          prefixItems: [{ const: deny }]
+          minItems: 1
+          maxItems: 1
+        execution_result_is_evidence: { const: false }
+        limits:
+          type: object
+          additionalProperties: false
+          required: [max_source_bytes, min_wall_ms, max_wall_ms, min_output_bytes, max_output_bytes]
+          properties:
+            max_source_bytes: { type: integer, maximum: 65536 }
+            min_wall_ms: { type: integer, minimum: 1 }
+            max_wall_ms: { type: integer, maximum: 10000 }
+            min_output_bytes: { type: integer, minimum: 1 }
+            max_output_bytes: { type: integer, maximum: 65536 }
+        result_integrity:
+          type: object
+          additionalProperties: false
+          required: [required, algorithm, key_id, public_jwk, verification_keys]
+          properties:
+            required: { type: boolean }
+            algorithm: { const: ECDSA_P256_SHA256 }
+            key_id:
+              type: [string, 'null']
+            public_jwk:
+              anyOf:
+                - $ref: '#/components/schemas/PublicP256Jwk'
+                - type: 'null'
+            verification_keys:
+              type: array
+              maxItems: 8
+              items:
+                $ref: '#/components/schemas/VerificationKey'
