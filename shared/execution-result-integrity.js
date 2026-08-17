@@ -2,6 +2,7 @@ export const RESULT_INTEGRITY_ALGORITHM = 'ECDSA_P256_SHA256'
 export const RESULT_INTEGRITY_PAYLOAD_VERSION = '2'
 
 const encoder = new TextEncoder()
+const P256_COORDINATE_RE=/^[A-Za-z0-9_-]{43}$/
 function bytes(text){return encoder.encode(String(text))}
 function base64UrlEncode(buffer){const data=new Uint8Array(buffer);let binary='';for(const value of data)binary+=String.fromCharCode(value);return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'')}
 function base64UrlDecode(text){if(typeof text!=='string'||!/^[A-Za-z0-9_-]+$/.test(text))throw new Error('Invalid base64url signature');const padded=text.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-text.length%4)%4);const binary=atob(padded);return Uint8Array.from(binary,ch=>ch.charCodeAt(0))}
@@ -19,8 +20,8 @@ export function canonicalExecutionResultForIntegrity(envelope,payloadVersion=env
   throw new Error(`Unsupported execution result signature payload version: ${payloadVersion}`)
 }
 
-function assertPublicJwk(jwk){if(!jwk||typeof jwk!=='object'||Array.isArray(jwk))throw new Error('Signing public JWK is required');if(jwk.kty!=='EC'||jwk.crv!=='P-256'||typeof jwk.x!=='string'||typeof jwk.y!=='string')throw new Error('Signing public JWK must be an EC P-256 key');if('d'in jwk)throw new Error('Signing public JWK must not contain private key material');return jwk}
-function assertPrivateJwk(jwk){if(!jwk||typeof jwk!=='object'||Array.isArray(jwk))throw new Error('Signing private JWK is required');if(jwk.kty!=='EC'||jwk.crv!=='P-256'||typeof jwk.x!=='string'||typeof jwk.y!=='string'||typeof jwk.d!=='string')throw new Error('Signing private JWK must be an EC P-256 private key');return jwk}
+function assertPublicJwk(jwk){if(!jwk||typeof jwk!=='object'||Array.isArray(jwk))throw new Error('Signing public JWK is required');if(jwk.kty!=='EC'||jwk.crv!=='P-256'||!P256_COORDINATE_RE.test(jwk.x)||!P256_COORDINATE_RE.test(jwk.y))throw new Error('Signing public JWK must be an EC P-256 key with canonical coordinates');if('d'in jwk)throw new Error('Signing public JWK must not contain private key material');return jwk}
+function assertPrivateJwk(jwk){if(!jwk||typeof jwk!=='object'||Array.isArray(jwk))throw new Error('Signing private JWK is required');if(jwk.kty!=='EC'||jwk.crv!=='P-256'||!P256_COORDINATE_RE.test(jwk.x)||!P256_COORDINATE_RE.test(jwk.y)||!P256_COORDINATE_RE.test(jwk.d))throw new Error('Signing private JWK must be a canonical EC P-256 private key');return jwk}
 
 export async function signExecutionResult(envelope,privateJwk,keyId){
   if(typeof keyId!=='string'||!/^[A-Za-z0-9._:-]{1,128}$/.test(keyId))throw new Error('Invalid signing key id')
