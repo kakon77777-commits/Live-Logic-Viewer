@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createCloudflareProviderCore } from '../src/providers/cloudflare-core.js'
+import { createCloudflareProviderCore, FIXED_PYTHON_COMMAND, SANDBOX_OPTIONS } from '../src/providers/cloudflare-core.js'
 
 const request = {
   schema_version: '0.1',
@@ -25,14 +25,22 @@ function harness({ chunks = [['stdout', 'ok\n']], exitCode = 0, execError } = {}
 afterEach(() => vi.useRealTimers())
 
 describe('Cloudflare execution provider boundary', () => {
-  it('writes user source to a fixed file and keeps it out of the fixed command', async () => {
+  it('uses an isolated default-session policy and a fixed scrubbed Python command', async () => {
     const h = harness()
-    const provider = createCloudflareProviderCore({ Sandbox:{} }, { getSandboxImpl:h.getSandboxImpl })
+    const binding = {}
+    const provider = createCloudflareProviderCore({ Sandbox:binding, CONTROL_API_TOKEN:'must-not-enter-sandbox' }, { getSandboxImpl:h.getSandboxImpl })
     const result = await provider.executePython({ jobId:'ABC-123', request })
+
+    expect(h.getSandboxImpl).toHaveBeenCalledWith(binding,'job-abc123',SANDBOX_OPTIONS)
+    expect(SANDBOX_OPTIONS).toEqual({ enableDefaultSession:false })
     expect(h.writeFile).toHaveBeenCalledWith('/workspace/main.py', request.source)
+
     const [command, options] = h.exec.mock.calls[0]
-    expect(command).toBe('python3 /workspace/main.py')
+    expect(command).toBe(FIXED_PYTHON_COMMAND)
+    expect(command).toContain('/usr/bin/env -i')
+    expect(command).toContain('PYTHONNOUSERSITE=1')
     expect(command).not.toContain('USER SOURCE')
+    expect(command).not.toContain('must-not-enter-sandbox')
     expect(options.cwd).toBe('/workspace')
     expect(options.timeout).toBe(4571)
     expect(options.stream).toBe(true)
