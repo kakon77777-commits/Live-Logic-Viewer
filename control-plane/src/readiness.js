@@ -2,6 +2,8 @@ import { assertExecutionProvider } from './provider.js'
 import { rateLimitConfiguration } from './rate-limit.js'
 import { signingCapability } from './signing.js'
 
+const MIN_CONTROL_API_TOKEN_CHARACTERS=32
+
 function originReady(env) {
   if (typeof env?.VIEWER_ORIGIN !== 'string' || !env.VIEWER_ORIGIN.length) return false
   try {
@@ -15,7 +17,7 @@ function originReady(env) {
 }
 
 function authReady(env) {
-  return typeof env?.CONTROL_API_TOKEN === 'string' && env.CONTROL_API_TOKEN.length >= 16
+  return typeof env?.CONTROL_API_TOKEN === 'string' && env.CONTROL_API_TOKEN.length >= MIN_CONTROL_API_TOKEN_CHARACTERS
 }
 
 export function controlPlaneReadiness(providerFactory, env = {}) {
