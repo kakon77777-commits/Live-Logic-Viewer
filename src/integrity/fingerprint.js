@@ -2,6 +2,11 @@ import { canonicalJson } from '../../shared/canonical-json.js'
 import { sha256Hex } from '../../shared/sha256.js'
 import { projectAt } from '../projection/projector.js'
 
+export const REPLAY_FINGERPRINT_VERSION='1'
+export const REPLAY_CANONICALIZATION='sorted-json-v1'
+export const REPLAY_HASH_ALGORITHM='SHA-256'
+export const PROJECTOR_VERSION='0.2.0'
+
 function packagePrefix(store,cursor) {
   const end=Math.max(0,Math.min(store.length,Math.trunc(Number(cursor) || 0)))
   const value={schema_version:store.schemaVersion,package_id:store.packageId,events:store.events.slice(0,end)}
@@ -19,6 +24,10 @@ export async function fingerprintReplay(store,cursor=store.length) {
   ])
   return Object.freeze({
     schema_version:'0.1',
+    fingerprint_version:REPLAY_FINGERPRINT_VERSION,
+    canonicalization:REPLAY_CANONICALIZATION,
+    hash_algorithm:REPLAY_HASH_ALGORITHM,
+    projector_version:PROJECTOR_VERSION,
     package_id:store.packageId,
     event_schema_version:store.schemaVersion,
     event_cursor:end,
