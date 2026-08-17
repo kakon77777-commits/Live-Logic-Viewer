@@ -3,6 +3,7 @@ export function createEventStore(pkg) {
   return Object.freeze({
     schemaVersion: pkg.schema_version,
     packageId: pkg.package_id,
+    createdAt: pkg.created_at ?? null,
     events: Object.freeze([...pkg.events]),
     length: pkg.events.length,
   })
