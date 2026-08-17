@@ -1,5 +1,8 @@
 import { assertExecutionProvider } from '../provider.js'
 
+export const FIXED_PYTHON_COMMAND='/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp LANG=C.UTF-8 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 python3 /workspace/main.py'
+export const SANDBOX_OPTIONS=Object.freeze({enableDefaultSession:false})
+
 function sandboxId(jobId) {
   const compact = String(jobId).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40)
   return `job-${compact || 'anonymous'}`
@@ -11,14 +14,14 @@ export function createCloudflareProviderCore(env,{getSandboxImpl}) {
   if(!env?.Sandbox)throw new Error('Cloudflare Sandbox binding is not configured')
   if(typeof getSandboxImpl!=='function')throw new TypeError('getSandboxImpl must be a function')
   return assertExecutionProvider({async executePython({jobId,request}){
-    const sandbox=getSandboxImpl(env.Sandbox,sandboxId(jobId));const cap=request.limits.output_bytes
+    const sandbox=getSandboxImpl(env.Sandbox,sandboxId(jobId),SANDBOX_OPTIONS);const cap=request.limits.output_bytes
     let stdout='',stderr='',usedBytes=0,outputLimited=false,timedOut=false,destroyPromise=null
     const destroyOnce=()=>{if(!destroyPromise)destroyPromise=Promise.resolve().then(()=>sandbox.destroy()).catch(()=>{});return destroyPromise}
     const appendOutput=(stream,data)=>{if(outputLimited)return;const remaining=Math.max(0,cap-usedBytes);const piece=takeUtf8Prefix(data,remaining);if(stream==='stderr')stderr+=piece.text;else stdout+=piece.text;usedBytes+=byteLength(piece.text);if(piece.truncated){outputLimited=true;void destroyOnce()}}
     const deadline=setTimeout(()=>{timedOut=true;void destroyOnce()},request.limits.wall_ms)
     try {
       await sandbox.writeFile('/workspace/main.py',request.source)
-      const result=await sandbox.exec('python3 /workspace/main.py',{cwd:'/workspace',timeout:request.limits.wall_ms+250,stream:true,onOutput:appendOutput})
+      const result=await sandbox.exec(FIXED_PYTHON_COMMAND,{cwd:'/workspace',timeout:request.limits.wall_ms+250,stream:true,onOutput:appendOutput})
       return{provider:'cloudflare',stdout,stderr,exitCode:Number.isInteger(result?.exitCode)?result.exitCode:null,timedOut,outputLimited}
     } catch(error) {
       if(timedOut||outputLimited)return{provider:'cloudflare',stdout,stderr,exitCode:null,timedOut,outputLimited}
