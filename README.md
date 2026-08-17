@@ -13,30 +13,37 @@ Viewer source request
 → capability handshake
 → same-origin Control Plane
 → Managed Sandbox Provider
-→ canonical result + provenance
+→ canonical result + provenance + detached signature
+→ Viewer schema/provenance/signature verification
 → Execution Result Inspector
 → optional explicit lifecycle event
 ```
 
-## Basic-complete architecture
+## Integration v0.2 architecture
 
 The browser Viewer never executes user-provided code. Remote Python source is sent as data to a separate control plane. The control plane validates a narrow request contract, requires explicit outbound-network deny, applies abuse-control limits, and delegates execution to a managed sandbox provider.
 
-Execution output returns as a canonical result envelope. The Viewer validates the envelope and verifies source/request provenance before displaying stdout/stderr as inert text. An execution result is **not Evidence** and cannot change Judgment automatically.
+Execution output returns as a canonical result envelope. The Viewer validates its closed schema, verifies the source/request provenance hashes, and—when the capability contract requires it—verifies a detached ECDSA P-256 / SHA-256 signature before accepting the remote result. Signing private keys exist only in the Control Plane environment. The Viewer receives public verification keys through the same-origin capability handshake.
 
-An inspected result may be recorded only through the explicit `Record lifecycle` action, which creates `execution_completed` or `execution_failed` metadata for an existing claim. Raw stdout/stderr is never copied into the Dynamic Logic event package.
+The result-integrity capability supports one active signing key plus a bounded set of previous public verification keys. This lets a deployment rotate its active private key without making in-flight or recently archived signed results unverifiable during a controlled grace period.
+
+An execution result is **not Evidence** and cannot change Judgment automatically. An inspected result may be recorded only through the explicit `Record lifecycle` action, which creates `execution_completed` or `execution_failed` metadata for an existing claim. Raw stdout/stderr is never copied into the Dynamic Logic event package.
 
 ## Security invariants
 
-- Viewer has no shell, filesystem bridge, MCP, agent write tool, WebAssembly runner, `eval`, `new Function`, dynamic script URL, provider credential, or arbitrary HTML/CSS execution.
+- Viewer has no shell, filesystem bridge, MCP, agent write tool, WebAssembly runner, `eval`, `new Function`, dynamic script URL, provider credential, private signing key, or arbitrary HTML/CSS execution.
 - Event/result packages are closed-schema validated and recursively reject capability-bearing fields.
 - Replay changes only a cursor; replay is never re-execution.
 - `ERROR != Ω != false`.
 - `Execution Result != Evidence`.
-- Remote execution stays disabled until `/v1/capabilities` proves the server is no broader than the Viewer v0.1 contract.
+- Remote execution stays disabled until `/v1/capabilities` proves the server is no broader than the Viewer contract.
 - Every remote run includes a fresh `request_id` in the canonical request hash.
+- Remote acceptance order is `Schema → Provenance → Signature`.
+- Required result signatures cannot be downgraded to unsigned results.
+- Provider raw output must pass an exact conformance contract before canonicalization.
 - Provider-side stdout/stderr and wall time are bounded during execution; timeout/overflow destroys the sandbox.
-- Production execution fails closed without the configured abuse-control binding.
+- Viewer-side remote waits are independently bounded and abort rather than spin forever.
+- Production execution fails closed without abuse-control and result-signing configuration. Unsigned results require the explicit `ALLOW_UNSIGNED_RESULTS_DEV=true` development bypass.
 
 ## Viewer development
 
@@ -57,7 +64,34 @@ npm run verify:core
 npm test
 ```
 
-The Cloudflare runtime adapter is deliberately thin. Pure provider behavior is tested through `cloudflare-core.js` without pretending a normal Node process is the Cloudflare Workers runtime.
+The Cloudflare runtime adapter is deliberately thin. Pure provider behavior is tested through provider-core/conformance tests without pretending a normal Node process is the Cloudflare Workers runtime.
+
+## Result signing configuration
+
+Production Control Plane configuration requires:
+
+```text
+RESULT_SIGNING_KEY_ID
+RESULT_SIGNING_PUBLIC_JWK
+RESULT_SIGNING_PRIVATE_JWK
+```
+
+Optional key-rotation grace verification keys are supplied as a JSON array through:
+
+```text
+RESULT_SIGNING_PREVIOUS_PUBLIC_JWKS
+```
+
+Each previous entry has the shape:
+
+```json
+{
+  "key_id": "previous-key-id",
+  "public_jwk": { "kty": "EC", "crv": "P-256", "x": "...", "y": "..." }
+}
+```
+
+Only the active key has a private component. `ALLOW_UNSIGNED_RESULTS_DEV=true` is a development-only escape hatch and is intentionally fail-closed unless explicitly configured.
 
 ## Deployment
 
@@ -68,5 +102,6 @@ Do not guess provider infrastructure defaults. Read `docs/deployment/cloudflare-
 - `SECURITY.md`
 - `docs/whitepapers/fully-outsourced-execution-v0.1.md`
 - `docs/BASIC-COMPLETE-v0.1.md`
+- `docs/INTEGRATION-v0.2.md`
 - `docs/deployment/cloudflare-final-calibration.md`
 - `docs/STACKED-PRS.md`
