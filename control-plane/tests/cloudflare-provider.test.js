@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCloudflareProvider } from '../src/providers/cloudflare.js'
+import { createCloudflareProviderCore } from '../src/providers/cloudflare-core.js'
 
 const request = {
   schema_version: '0.1',
@@ -13,10 +13,7 @@ function harness({ output, execError } = {}) {
   const destroy = vi.fn(async () => {})
   const writeFile = vi.fn(async () => {})
   const outputFn = vi.fn(async () => output ?? {
-    stdout: 'ok\n',
-    stderr: '',
-    exitCode: 0,
-    timedOut: false
+    stdout: 'ok\n', stderr: '', exitCode: 0, timedOut: false
   })
   const exec = vi.fn(async () => {
     if (execError) throw execError
@@ -24,13 +21,13 @@ function harness({ output, execError } = {}) {
   })
   const sandbox = { destroy, writeFile, exec }
   const getSandboxImpl = vi.fn(() => sandbox)
-  return { sandbox, destroy, writeFile, outputFn, exec, getSandboxImpl }
+  return { destroy, writeFile, outputFn, exec, getSandboxImpl }
 }
 
 describe('Cloudflare execution provider boundary', () => {
   it('writes user source to a fixed file and keeps it out of argv', async () => {
     const h = harness()
-    const provider = createCloudflareProvider({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
+    const provider = createCloudflareProviderCore({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
     const result = await provider.executePython({ jobId: 'ABC-123', request })
 
     expect(h.writeFile).toHaveBeenCalledWith('/workspace/main.py', request.source)
@@ -39,27 +36,21 @@ describe('Cloudflare execution provider boundary', () => {
       { cwd: '/workspace', timeout: 4321 }
     )
     expect(JSON.stringify(h.exec.mock.calls)).not.toContain('USER SOURCE')
-    expect(result).toEqual({
-      provider: 'cloudflare',
-      stdout: 'ok\n',
-      stderr: '',
-      exitCode: 0,
-      timedOut: false
-    })
+    expect(result).toEqual({ provider:'cloudflare', stdout:'ok\n', stderr:'', exitCode:0, timedOut:false })
     expect(h.destroy).toHaveBeenCalledOnce()
   })
 
   it('destroys the sandbox when execution throws', async () => {
     const h = harness({ execError: new Error('boom') })
-    const provider = createCloudflareProvider({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
-    await expect(provider.executePython({ jobId: 'job-2', request })).rejects.toThrow('boom')
+    const provider = createCloudflareProviderCore({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
+    await expect(provider.executePython({ jobId:'job-2', request })).rejects.toThrow('boom')
     expect(h.destroy).toHaveBeenCalledOnce()
   })
 
   it('normalizes timeout/output metadata without inventing a judgment', async () => {
-    const h = harness({ output: { stdout: '', stderr: 'deadline', exitCode: null, timedOut: true } })
-    const provider = createCloudflareProvider({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
-    const result = await provider.executePython({ jobId: 'job-3', request })
+    const h = harness({ output: { stdout:'', stderr:'deadline', exitCode:null, timedOut:true } })
+    const provider = createCloudflareProviderCore({ Sandbox: {} }, { getSandboxImpl: h.getSandboxImpl })
+    const result = await provider.executePython({ jobId:'job-3', request })
     expect(result.timedOut).toBe(true)
     expect(result.exitCode).toBeNull()
     expect(result).not.toHaveProperty('judgment')
