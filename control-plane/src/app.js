@@ -7,10 +7,11 @@ import { signCanonicalExecutionEnvelope } from './signing.js'
 import { controlPlaneReadiness } from './readiness.js'
 import { BoundedUtf8Error, readBoundedUtf8Message } from '../../shared/bounded-utf8.js'
 
+export const MIN_CONTROL_API_TOKEN_CHARACTERS=32
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'})
 function json(value,status=200,extraHeaders={}){return new Response(JSON.stringify(value),{status,headers:{...JSON_HEADERS,...extraHeaders}})}
 function corsHeaders(request,env){const origin=request.headers.get('origin');const allowed=env?.VIEWER_ORIGIN;if(!origin)return{};if(!allowed||origin!==allowed)return null;return{'access-control-allow-origin':allowed,'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'authorization, content-type','vary':'Origin'}}
-function authorized(request,env){const token=env?.CONTROL_API_TOKEN;if(typeof token!=='string'||token.length<16)return'misconfigured';return(request.headers.get('authorization')||'')===`Bearer ${token}`}
+function authorized(request,env){const token=env?.CONTROL_API_TOKEN;if(typeof token!=='string'||token.length<MIN_CONTROL_API_TOKEN_CHARACTERS)return'misconfigured';return(request.headers.get('authorization')||'')===`Bearer ${token}`}
 
 export function createApplication(providerFactory){
   if(typeof providerFactory!=='function')throw new TypeError('providerFactory must be a function')
