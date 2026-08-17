@@ -12,7 +12,6 @@ Viewer request
 ```
 
 ## v0.1 security boundary
-
 - only the `python` runner is accepted;
 - `network_policy.mode` must be explicitly `deny`;
 - source is capped at 64 KiB;
@@ -26,28 +25,14 @@ Viewer request
 - provider failures remain execution failures.
 
 ## Provider architecture
-
-Pure control-plane code depends only on the `ExecutionProvider` contract. The Cloudflare adapter uses the Sandbox SDK 1.0 preview (`@cloudflare/sandbox@next`) and `argv[]` process execution.
-
-`LiveLogicSandbox.enableInternet = false` is fixed in code. v0.1 deliberately exposes no allowlist mode.
+Pure control-plane code depends only on the `ExecutionProvider` contract. The Cloudflare adapter uses the Sandbox SDK 1.0 preview (`@cloudflare/sandbox@next`) and argv process execution. `LiveLogicSandbox.enableInternet = false` is fixed in code.
 
 ## Deployment boundary
+This snapshot contains Worker-side logic and the Cloudflare adapter, but does not hard-code a Docker image or Wrangler container binding. Generate/verify the current official Cloudflare Sandbox scaffold for the selected SDK version during local deployment calibration.
 
-This snapshot contains the Worker-side logic and Cloudflare adapter, but does not hard-code a Docker image or Wrangler container binding. For a deployment checkout, generate the current official Cloudflare Sandbox scaffold using the official C3/template for the installed SDK version, then bind its Durable Object / Container class to `LiveLogicSandbox`.
+## Abuse-control binding
+Production execution fails closed unless `EXECUTION_RATE_LIMITER` exposes Cloudflare's Workers Rate Limiting binding API. `ALLOW_UNLIMITED_DEV=true` is the only intentional bypass and is for local development/tests only.
 
-This is deliberate: Sandbox container images and Wrangler binding details are provider-version infrastructure and must be locally verified against the selected SDK release rather than silently guessed into the security baseline.
+The rate limiter is an abuse-control layer, not an accounting ledger; Cloudflare documents the binding as permissive/eventually consistent and location-local. Precise paid quotas must use a separate durable accounting system.
 
-## Local core verification
-
-The mock-provider path is dependency-light:
-
-```bash
-node scripts/verify-control-plane.mjs
-```
-
-Full tests after installing dependencies:
-
-```bash
-npm ci
-npm test
-```
+`GET /v1/capabilities` exposes only fixed public safety capabilities and never secrets.
