@@ -6,15 +6,10 @@ const ajv = new Ajv2020({ allErrors: true, strict: true })
 const validateSchema = ajv.compile(schema)
 
 export class ProtocolValidationError extends Error {
-  constructor(message) {
-    super(message)
-    this.name = 'ProtocolValidationError'
-  }
+  constructor(message) { super(message); this.name = 'ProtocolValidationError' }
 }
 
-function byteLength(text) {
-  return new TextEncoder().encode(text).byteLength
-}
+function byteLength(text) { return new TextEncoder().encode(text).byteLength }
 
 function inspect(value, depth = 1, path = '$') {
   if (depth > MAX_JSON_DEPTH) throw new ProtocolValidationError(`JSON nesting exceeds ${MAX_JSON_DEPTH} at ${path}`)
@@ -36,6 +31,16 @@ function deepFreeze(value) {
 }
 
 export function validatePackageObject(value) {
+  // In-memory derivation (for example an explicit execution lifecycle append)
+  // must obey the same 256 KiB contract as imported JSON. Otherwise the Viewer
+  // could produce a session it later refuses to re-import.
+  let serialized
+  try { serialized = JSON.stringify(value) }
+  catch { throw new ProtocolValidationError('Event package must be JSON-serializable') }
+  if (byteLength(serialized) > MAX_PACKAGE_BYTES) {
+    throw new ProtocolValidationError(`Package exceeds ${MAX_PACKAGE_BYTES} bytes`)
+  }
+
   inspect(value)
   if (!validateSchema(value)) {
     const detail = validateSchema.errors?.map(e => `${e.instancePath || '$'} ${e.message}`).join('; ') || 'schema mismatch'
@@ -56,6 +61,7 @@ export function parseAndValidatePackage(text) {
   if (typeof text !== 'string') throw new ProtocolValidationError('Package input must be UTF-8 text')
   if (byteLength(text) > MAX_PACKAGE_BYTES) throw new ProtocolValidationError(`Package exceeds ${MAX_PACKAGE_BYTES} bytes`)
   let value
-  try { value = JSON.parse(text) } catch (error) { throw new ProtocolValidationError(`Invalid JSON: ${error.message}`) }
+  try { value = JSON.parse(text) }
+  catch (error) { throw new ProtocolValidationError(`Invalid JSON: ${error.message}`) }
   return validatePackageObject(value)
 }
