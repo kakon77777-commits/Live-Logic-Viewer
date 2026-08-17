@@ -7,6 +7,12 @@ const v2=()=>({...valid(),request_id:'req-result-01234567',received_at:'2026-08-
 describe('execution-result inspector protocol',()=>{
   it('accepts canonical legacy unsigned execution results',()=>expect(validateExecutionResultObject(valid()).status).toBe('completed'))
   it('accepts a structurally complete signed v2 envelope',()=>expect(validateExecutionResultObject(v2()).request_id).toBe('req-result-01234567'))
+  it('rejects completed results that also claim timeout',()=>{const value=valid();value.execution.timed_out=true;expect(()=>validateExecutionResultObject(value)).toThrow(/Completed execution result/i)})
+  it('rejects completed results that also claim truncation',()=>{const value=valid();value.result.truncated=true;expect(()=>validateExecutionResultObject(value)).toThrow(/Completed execution result/i)})
+  it('rejects completed results with non-zero exit code',()=>{const value=valid();value.execution.exit_code=1;expect(()=>validateExecutionResultObject(value)).toThrow(/Completed execution result/i)})
+  it('rejects failed results without any recorded failure condition',()=>{const value=valid();value.status='failed';expect(()=>validateExecutionResultObject(value)).toThrow(/Failed execution result/i)})
+  it('accepts failed timeout metadata without treating it as epistemic false',()=>{const value=valid();value.status='failed';value.execution.exit_code=null;value.execution.timed_out=true;expect(validateExecutionResultObject(value).status).toBe('failed')})
+  it('accepts failed truncation metadata even with exit code zero',()=>{const value=valid();value.status='failed';value.result.truncated=true;expect(validateExecutionResultObject(value).status).toBe('failed')})
   it('rejects signed v2 without request/time audit fields',()=>{const value=valid();value.integrity={algorithm:'ECDSA_P256_SHA256',payload_version:'2',key_id:'key-1',signature:'AA'};expect(()=>validateExecutionResultObject(value)).toThrow(/Invalid execution result/)})
   it('rejects audit metadata attached to legacy v1 signatures because v1 does not sign those fields',()=>{
     const value={...valid(),request_id:'req-legacy-01234567',received_at:'2026-08-17T06:00:00.000Z',completed_at:'2026-08-17T06:00:00.002Z',integrity:{algorithm:'ECDSA_P256_SHA256',payload_version:'1',key_id:'legacy-key',signature:'AA'}}
